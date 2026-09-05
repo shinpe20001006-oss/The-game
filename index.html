@@ -23,7 +23,18 @@
     .bar-label { font-size: 11px; font-weight: bold; margin-bottom: 2px; text-shadow: 1px 1px 2px #000; }
     .bar-bg { width: 200px; height: 14px; background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
     #hp-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ff6b81); transition: width 0.15s; }
-    #mp-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #0984e3, #00cec9); transition: width 0.1s; }
+    #mp-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #0984e3, #00cec9); transition: width 0.08s; }
+    
+    /* MP枯渇時点滅アニメーション */
+    .overheat {
+      background: linear-gradient(90deg, #d63031, #e17055) !important;
+      animation: blink 0.5s infinite alternate;
+    }
+    @keyframes blink {
+      from { opacity: 0.4; }
+      to { opacity: 1; }
+    }
+
     #info { margin-top: 4px; font-size: 13px; font-weight: bold; color: #55e6c1; text-shadow: 0 0 4px #000; }
 
     #minimap-container {
@@ -73,7 +84,7 @@
     <div id="hud">
       <div class="bar-label">HP</div>
       <div class="bar-bg"><div id="hp-bar"></div></div>
-      <div class="bar-label">MP (MANA)</div>
+      <div class="bar-label" id="mp-label">MP (MANA)</div>
       <div class="bar-bg"><div id="mp-bar"></div></div>
       <div id="info">合言葉を入力して参戦</div>
     </div>
@@ -85,7 +96,8 @@
     <p class="controls">
       【WASD】移動　【SPACE】ジャンプ　【マウス】照準<br>
       【左クリック短押し】魔法弾（MP 25消費）<br>
-      【長押し or 右クリック】ガード展開（正面ダメ75%軽減・MP持続消費）
+      【長押し or 右クリック】ガード（被ダメ75%減・MP消費/被弾時MP-30）<br>
+      <span style="color:#ff7675;">※MPが0になるとフル回復するまで魔法もガードも使用不能！</span>
     </p>
     <input type="text" id="room-input" placeholder="合言葉（ルーム名）" value="arena888">
     <button class="btn" id="start-btn">参戦する</button>
@@ -107,7 +119,7 @@
     moonLight.position.set(30, 60, 20);
     scene.add(moonLight);
 
-    // --- 2. 遺跡ステージ生成 ---
+    // --- 2. 遺跡ステージ生成 & コリジョン ---
     const colliders = [];
     const mapObstacles = [];
 
@@ -117,8 +129,6 @@
         new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.2 })
       );
       mesh.position.set(x, y + h / 2, z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
       scene.add(mesh);
 
       const box = new THREE.Box3().setFromObject(mesh);
@@ -132,13 +142,13 @@
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // 外壁 (35m四方)
+    // 外壁
     addBox(0, 0, -35, 70, 8, 2, 0x1e272e);
     addBox(0, 0, 35, 70, 8, 2, 0x1e272e);
     addBox(-35, 0, 0, 2, 8, 70, 0x1e272e);
     addBox(35, 0, 0, 2, 8, 70, 0x1e272e);
 
-    // 中央テラス（2段構造）
+    // 中央の高台テラス（2段構造）
     addBox(0, 0, 0, 14, 2.5, 14, 0x353b48);
     addBox(0, 2.5, 0, 8, 2.5, 8, 0x2f3640);
     addBox(0, 5.0, 0, 2, 4.0, 2, 0x00d2d3);
@@ -157,7 +167,7 @@
     ];
     mazeWalls.forEach(([x, z, w, d]) => addBox(x, 0, z, w, 4.5, d));
 
-    // 石柱（半径1.2m）
+    // 石柱（半径1.4m）
     const pillarGeo = new THREE.CylinderGeometry(1.2, 1.4, 7, 16);
     const pillarMat = new THREE.MeshStandardMaterial({ color: 0x57606f, roughness: 0.7 });
     const pillarPos = [[-12, -8], [12, -8], [-12, 8], [12, 8], [-25, -25], [25, 25], [-25, 25], [25, -25]];
@@ -166,10 +176,10 @@
       p.position.set(x, 3.5, z);
       scene.add(p);
       colliders.push(new THREE.Box3().setFromObject(p));
-      mapObstacles.push({ x, z, w: 2.5, d: 2.5 });
+      mapObstacles.push({ x, z, w: 2.8, d: 2.8 });
     });
 
-    // --- 3. シールド & 敵プレイヤー ---
+    // --- 3. 自機 & 敵プレイヤーのシールドメッシュ ---
     function createShieldMesh(colorHex = 0x00d2d3) {
       const shieldGeo = new THREE.CircleGeometry(1.0, 6);
       const shieldMat = new THREE.MeshBasicMaterial({
@@ -196,7 +206,7 @@
     enemyMesh.visible = false;
     scene.add(enemyMesh);
 
-    // --- 4. 物理演算 & スタック防止スライディング衝突 ---
+    // --- 4. プレイヤー物理 & 安全なスポーン地点 ---
     const playerRadius = 0.45;
     const eyeHeight = 1.7;
     let velocityY = 0;
@@ -205,59 +215,61 @@
     let isGrounded = false;
     let myHp = 100;
     let myMp = 100;
+    let isOverheated = false; // MP枯渇状態フラグ
     let isGuarding = false;
 
-    // ★修正: 柱（±25, ±25）や壁から完全に離れた安全な開けた地点にスポーン
+    // ★障害物から完全に離れた安全なスポーン座標（周囲5m以上クリア）
+    const safeSpawns = [
+      { x: 0, z: -28 },
+      { x: 0, z: 28 },
+      { x: -28, z: 0 },
+      { x: 28, z: 0 }
+    ];
+
     function resetSpawn() {
-      const spawns = [
-        { x: -18, z: -10 }, { x: 18, z: -10 },
-        { x: -18, z: 10 },  { x: 18, z: 10 }
-      ];
-      const s = spawns[Math.floor(Math.random() * spawns.length)];
-      camera.position.set(s.x, 2.0, s.z);
+      const s = safeSpawns[Math.floor(Math.random() * safeSpawns.length)];
+      camera.position.set(s.x, eyeHeight, s.z);
       velocityY = 0;
       myHp = 100;
       myMp = 100;
+      isOverheated = false;
       document.getElementById('hp-bar').style.width = '100%';
       document.getElementById('mp-bar').style.width = '100%';
+      document.getElementById('mp-bar').classList.remove('overheat');
+      document.getElementById('mp-label').innerText = 'MP (MANA)';
+      document.getElementById('mp-label').style.color = '#fff';
     }
     resetSpawn();
 
-    // ★修正: スタックしない「物理押し出しスライディング」方式
-    function resolveCollision(posX, posZ) {
-      let curX = posX;
-      let curZ = posZ;
-      const footY = camera.position.y - eyeHeight + 0.35; // 足元の段差許容
+    function resolveCollision(newX, newZ) {
+      let finalX = newX, finalZ = newZ;
+      const playerBox = new THREE.Box3();
+      const footHeight = camera.position.y - eyeHeight + 0.35; // 足元の段差マージン
+      const topHeight = camera.position.y + 0.1;
 
+      // X軸移動判定
+      playerBox.min.set(finalX - playerRadius, footHeight, camera.position.z - playerRadius);
+      playerBox.max.set(finalX + playerRadius, topHeight, camera.position.z + playerRadius);
       for (let box of colliders) {
-        // 高さ方向で干渉しているか
-        if (footY < box.max.y && (camera.position.y + 0.1) > box.min.y) {
-          // AABBに対する最近接点を計算
-          const cx = Math.max(box.min.x, Math.min(curX, box.max.x));
-          const cz = Math.max(box.min.z, Math.min(curZ, box.max.z));
-
-          const dx = curX - cx;
-          const dz = curZ - cz;
-          const distSq = dx * dx + dz * dz;
-
-          // プレイヤーの円半径と衝突している場合、外側へ押し出す
-          if (distSq < playerRadius * playerRadius) {
-            const dist = Math.sqrt(distSq);
-            if (dist > 0.0001) {
-              const overlap = playerRadius - dist;
-              curX += (dx / dist) * overlap;
-              curZ += (dz / dist) * overlap;
-            } else {
-              // 中心が完全に重なってしまった場合の退避
-              curX += playerRadius;
-            }
-          }
+        if (box.intersectsBox(playerBox)) {
+          finalX = camera.position.x;
+          break;
         }
       }
-      return { x: curX, z: curZ };
+
+      // Z軸移動判定
+      playerBox.min.set(finalX - playerRadius, footHeight, finalZ - playerRadius);
+      playerBox.max.set(finalX + playerRadius, topHeight, finalZ + playerRadius);
+      for (let box of colliders) {
+        if (box.intersectsBox(playerBox)) {
+          finalZ = camera.position.z;
+          break;
+        }
+      }
+
+      return { x: finalX, z: finalZ };
     }
 
-    // 接地（床・台座）判定
     function checkGround(py) {
       let groundLevel = 0;
       const pFoot = py - eyeHeight;
@@ -273,7 +285,7 @@
       return groundLevel + eyeHeight;
     }
 
-    // --- 5. 魔法弾 & 爆発システム ---
+    // --- 5. 魔法弾 & 爆発 ---
     const spells = [];
     const particles = [];
 
@@ -283,7 +295,7 @@
       scene.add(pLight);
       setTimeout(() => scene.remove(pLight), 100);
 
-      const count = 20;
+      const count = 22;
       const pGeo = new THREE.SphereGeometry(0.12, 6, 6);
       const pMat = new THREE.MeshBasicMaterial({ color: colorHex });
 
@@ -345,25 +357,8 @@
           enemyShield.visible = data.isGuarding;
         } else if (data.type === 'shoot') {
           spawnSpell(data.x, data.y, data.z, data.vx, data.vy, data.vz, false);
-        } else if (data.type === 'hit') {
-          let damage = 25;
-          if (isGuarding && data.bulletDir) {
-            const camDir = new THREE.Vector3();
-            camera.getWorldDirection(camDir);
-            const bDir = new THREE.Vector3(data.bulletDir.x, 0, data.bulletDir.z).normalize();
-            if (camDir.dot(bDir) < -0.35) {
-              damage = 6;
-              createExplosion(myShield.getWorldPosition(new THREE.Vector3()), 0x00cec9);
-            }
-          }
-
-          myHp -= damage;
-          triggerHitEffect();
-          document.getElementById('hp-bar').style.width = `${Math.max(0, myHp)}%`;
-          if (myHp <= 0) {
-            document.getElementById('info').innerText = '撃破されました！リスポーン中...';
-            setTimeout(() => { resetSpawn(); document.getElementById('info').innerText = '戦闘中'; }, 3000);
-          }
+        } else if (data.type === 'enemyKilled') {
+          document.getElementById('info').innerText = '相手を撃破しました！';
         }
       });
     }
@@ -403,6 +398,7 @@
     });
     window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
+    // マウス押下（長押しガード & 攻撃判定）
     window.addEventListener('mousedown', (e) => {
       if (!isLocked || myHp <= 0) return;
       if (e.button === 0) {
@@ -418,8 +414,8 @@
       if (e.button === 0 && isMouseDown) {
         const pressDuration = Date.now() - mouseDownTime;
         isMouseDown = false;
-        // 短押し（200ms未満）かつ MP 25以上で発射
-        if (pressDuration < 200 && myMp >= 25) {
+        // 短押し（200ms未満）かつオーバーヒート中でなく、MPが25以上あれば魔法弾発射
+        if (pressDuration < 200 && !isOverheated && myMp >= 25) {
           fireSpell();
         }
       } else if (e.button === 2) {
@@ -431,6 +427,11 @@
 
     function fireSpell() {
       myMp -= 25;
+      if (myMp <= 0) {
+        myMp = 0;
+        triggerOverheat();
+      }
+
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       const sx = camera.position.x + dir.x * 0.6;
@@ -443,7 +444,18 @@
       if (conn && conn.open) conn.send({ type: 'shoot', x: sx, y: sy, z: sz, vx, vy, vz });
     }
 
-    // --- 8. ミニマップ ---
+    function triggerOverheat() {
+      isOverheated = true;
+      isGuarding = false;
+      myShield.visible = false;
+      const mpBar = document.getElementById('mp-bar');
+      mpBar.classList.add('overheat');
+      const mpLabel = document.getElementById('mp-label');
+      mpLabel.innerText = 'OVERHEAT! (フル回復まで行動不能)';
+      mpLabel.style.color = '#ff7675';
+    }
+
+    // --- 8. ミニマップ描画 ---
     const mapCanvas = document.getElementById('minimap');
     const mapCtx = mapCanvas.getContext('2d');
     const mapScale = 125 / 70;
@@ -488,23 +500,32 @@
 
     function animate() {
       requestAnimationFrame(animate);
-      const delta = Math.min(clock.getDelta(), 0.05);
+      const delta = Math.min(clock.getDelta(), 0.1);
 
       if (isLocked && myHp > 0) {
-        // ガード状態チェック
+        // ガード判定（オーバーヒート中はガード不可）
         const isHoldingLeft = isMouseDown && (Date.now() - mouseDownTime >= 200);
-        isGuarding = (isHoldingLeft || isRightDown) && myMp > 0;
+        isGuarding = (isHoldingLeft || isRightDown) && !isOverheated && myMp > 0;
         myShield.visible = isGuarding;
 
-        // ★修正: MPの増減（自然回復を毎秒18から毎秒9へと約半分に調整）
+        // MP増減処理
         if (isGuarding) {
-          myMp = Math.max(0, myMp - 24 * delta);
+          myMp = Math.max(0, myMp - 12 * delta); // ガード持続消費（緩和：毎秒12）
+          if (myMp <= 0) triggerOverheat();
         } else {
-          myMp = Math.min(100, myMp + 9 * delta);
+          // 自然回復（毎秒10）
+          myMp = Math.min(100, myMp + 10 * delta);
+          // オーバーヒート解除（100まで溜まりきった場合）
+          if (isOverheated && myMp >= 100) {
+            isOverheated = false;
+            document.getElementById('mp-bar').classList.remove('overheat');
+            document.getElementById('mp-label').innerText = 'MP (MANA)';
+            document.getElementById('mp-label').style.color = '#fff';
+          }
         }
         document.getElementById('mp-bar').style.width = `${myMp}%`;
 
-        // カメラ回転
+        // 視点 & 揺れ
         camera.rotation.order = 'YXZ';
         let shakeX = 0, shakeY = 0;
         if (shakeIntensity > 0) {
@@ -515,7 +536,7 @@
         camera.rotation.y = yaw + shakeX;
         camera.rotation.x = pitch + shakeY;
 
-        // 水平移動
+        // 移動
         const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
         const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
         const moveVec = new THREE.Vector3();
@@ -535,7 +556,7 @@
           camera.position.z = resolved.z;
         }
 
-        // 垂直移動 & 接地判定
+        // 垂直移動 & 接地
         velocityY += gravity * delta;
         camera.position.y += velocityY * delta;
         const targetFloorY = checkGround(camera.position.y);
@@ -547,7 +568,7 @@
           isGrounded = false;
         }
 
-        // 同期送信
+        // 相手に位置とガード状態を送信
         if (conn && conn.open) {
           conn.send({
             type: 'move',
@@ -562,7 +583,7 @@
         renderMinimap();
       }
 
-      // パーティクル
+      // パーティクル更新
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.life -= delta;
@@ -574,7 +595,7 @@
         }
       }
 
-      // 弾の更新 & コリジョン判定
+      // 魔法弾更新 ＆ 被弾判定
       const spellSphere = new THREE.Sphere(new THREE.Vector3(), 0.35);
       for (let i = spells.length - 1; i >= 0; i--) {
         const s = spells[i];
@@ -590,14 +611,38 @@
         }
         if (s.group.position.y <= 0.2) collided = true;
 
+        // ★相手の弾が自分に当たった場合の処理（自認制）
         if (!s.isMine && myHp > 0) {
           if (camera.position.distanceTo(s.group.position) < 1.3) {
             collided = true;
-            if (conn && conn.open) {
-              conn.send({
-                type: 'hit',
-                bulletDir: { x: s.vx, y: s.vy, z: s.vz }
-              });
+            let damage = 25;
+
+            // 正面ガード判定
+            if (isGuarding) {
+              const camDir = new THREE.Vector3();
+              camera.getWorldDirection(camDir);
+              const bDir = new THREE.Vector3(s.vx, 0, s.vz).normalize();
+              // 視線と弾の飛来方向が向かい合っていればガード成功
+              if (camDir.dot(bDir) < -0.3) {
+                damage = 6; // 被ダメ75%軽減
+                // ★ガード被弾時、MPが30減少！
+                myMp = Math.max(0, myMp - 30);
+                if (myMp <= 0) triggerOverheat();
+                createExplosion(myShield.getWorldPosition(new THREE.Vector3()), 0x00cec9);
+              }
+            }
+
+            myHp -= damage;
+            triggerHitEffect();
+            document.getElementById('hp-bar').style.width = `${Math.max(0, myHp)}%`;
+
+            if (myHp <= 0) {
+              document.getElementById('info').innerText = '撃破されました！リスポーン中...';
+              if (conn && conn.open) conn.send({ type: 'enemyKilled' });
+              setTimeout(() => {
+                resetSpawn();
+                document.getElementById('info').innerText = '戦闘中';
+              }, 3000);
             }
           }
         }
