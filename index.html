@@ -183,7 +183,6 @@
     </div>
   </div>
 
-  <!-- 開始前設定画面 (全6スタイル選択) -->
   <div id="overlay">
     <h1>TEMPLE OF MAGIC</h1>
     <div class="subtitle">3D 一人称 魔法決闘アリーナ</div>
@@ -228,7 +227,7 @@
     </div>
 
     <div class="controls-hint">
-      【WASD】移動　【SPACE / SHIFT】ジャンプ　【マウス】照準<br>
+      【WASD】移動　【SPACE / SHIFT (長押しで連続跳躍)】ジャンプ　【マウス】照準<br>
       【左クリック短押し】魔法弾発射　【左長押し / 右クリック / F】ガード展開<br>
       【E】必殺技発動（MP消費なし・オーバーヒート時も使用可）
     </div>
@@ -408,6 +407,9 @@
     enemyMesh.visible = false;
     scene.add(enemyMesh);
 
+    // ★敵の位置が受信されるまでミニマップ・3D空間での誤表示を防ぐフラグ
+    let hasEnemyPosition = false;
+
     // --- 4. メガビーム & 必殺技オブジェクト ---
     function createVisualBeam(colorHex) {
       const group = new THREE.Group();
@@ -484,13 +486,12 @@
     let isGuarding = false;
     let isGameStarted = false;
 
-    // バフ・タイマー
     let curseDebuffTimer = 0;
     let superMagicTimer = 0;
     let fullShieldTimer = 0;
     let respawnInvincibleTimer = 0;
-    let autoHealTimer = 0;         // ⑥オートヒール持続タイマー
-    let warpExpireTimer = 0;        // ⑤クイックワープ3秒失効タイマー
+    let autoHealTimer = 0;
+    let warpExpireTimer = 0;
 
     let beamCharging = false;
     let beamFiring = false;
@@ -648,8 +649,8 @@
     let peer = null, conn = null;
 
     function initNetwork(roomId) {
-      const hostId = `temple-v4-${roomId}-host`;
-      const guestId = `temple-v4-${roomId}-guest`;
+      const hostId = `temple-v5-${roomId}-host`;
+      const guestId = `temple-v5-${roomId}-guest`;
 
       peer = new Peer(hostId);
       peer.on('open', () => { document.getElementById('info').innerText = '相手の参加を待機中...'; });
@@ -663,7 +664,9 @@
     }
 
     function setupEvents() {
-      enemyMesh.visible = true;
+      // 接続直後はまだ位置を受信していないので false
+      hasEnemyPosition = false;
+      enemyMesh.visible = false;
       document.getElementById('info').innerText = '対戦開始！';
 
       conn.on('open', () => {
@@ -677,10 +680,13 @@
           enemyNameTag.position.set(0, 2.5, 0);
           enemyMesh.add(enemyNameTag);
         } else if (data.type === 'move') {
+          // ★最初の位置を受信した瞬間に初めて表示を有効化！(中心に誤表示されるのを防止)
           enemyMesh.position.set(data.x, data.y, data.z);
           enemyMesh.rotation.y = data.rot;
           enemyShield.visible = data.isGuarding;
           enemyFullShield.visible = data.hasFullShield;
+          hasEnemyPosition = true;
+          enemyMesh.visible = true;
         } else if (data.type === 'shoot') {
           spawnSpell(data.x, data.y, data.z, data.vx, data.vy, data.vz, false);
         } else if (data.type === 'hit_confirmed') {
@@ -689,7 +695,7 @@
             if (ultCharge < req) {
               ultCharge++;
               if (ultCharge >= req && selectedUltType === 'warp') {
-                warpExpireTimer = 3.0; // ⑤クイックワープの3秒タイマースタート
+                warpExpireTimer = 3.0;
               }
               updateHudBars();
             }
@@ -713,9 +719,9 @@
         } else if (data.type === 'ult_beam_end') {
           enemyBeam.visible = false;
         } else if (data.type === 'beam_damage') {
-          // ★メガビーム被弾処理：シールド貫通（フルシールド・通常ガード無視で直撃）
+          // メガビーム被弾（シールド完全貫通）
           if (myHp > 0 && !isDead && respawnInvincibleTimer <= 0) {
-            let dmg = data.dmg; // 軽減なし！
+            let dmg = data.dmg;
             myHp = Math.max(0, myHp - dmg);
             triggerHitEffect();
             updateHudBars();
@@ -725,7 +731,7 @@
       });
     }
 
-    // --- 8. 入力制御（マウス物理状態と完全直結して見た目バグ根絶） ---
+    // --- 8. 入力制御 ---
     let isLocked = false;
     let pitch = 0, yaw = 0;
     const keys = {};
@@ -777,11 +783,6 @@
 
     window.addEventListener('keydown', (e) => {
       keys[e.code] = true;
-      if ((e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') && isGrounded && isLocked && !isDead) {
-        const jPower = (curseDebuffTimer > 0 || beamFiring) ? 5 : 10;
-        velocityY = jPower;
-        isGrounded = false;
-      }
       if (e.code === 'KeyE' && isLocked && !isDead) {
         tryActivateUltimate();
       }
@@ -789,7 +790,6 @@
 
     window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-    // ★e.buttons による確実なマウス状態同期
     window.addEventListener('mousedown', (e) => {
       if (!isLocked || isDead) return;
       mouseButtonsState = e.buttons;
@@ -804,7 +804,6 @@
 
       if (e.button === 0) {
         const pressDuration = Date.now() - leftDownTime;
-        // 170ms未満の短押しなら魔法弾発射
         if (pressDuration < 170 && !beamFiring && !beamCharging) {
           const now = Date.now();
           if (now - lastShootTime >= 150) {
@@ -882,20 +881,18 @@
       }, 1000);
     }
 
-    // --- 9. 必殺技発動 (全6種) ---
+    // --- 9. 必殺技発動 ---
     function tryActivateUltimate() {
       const req = ultConfig[selectedUltType].req;
       if (ultCharge < req) return;
       if (isAnyUltActive()) return;
 
       if (selectedUltType === 'warp') {
-        // ⑤ クイックワープ：視界内に敵がいるか判定
-        if (!enemyMesh.visible) {
+        if (!enemyMesh.visible || !hasEnemyPosition) {
           document.getElementById('info').innerText = '敵が視界内にいません！';
           return;
         }
 
-        // カメラ視野内（前方かつ障害物に完全に遮られていないか）
         const toEnemy = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)).sub(camera.position);
         const camDir = new THREE.Vector3();
         camera.getWorldDirection(camDir);
@@ -905,13 +902,11 @@
           return;
         }
 
-        // 敵の真後ろへワープ！
         const enemyRotY = enemyMesh.rotation.y;
         const behindVec = new THREE.Vector3(Math.sin(enemyRotY), 0, Math.cos(enemyRotY)).multiplyScalar(1.8);
         const targetPos = enemyMesh.position.clone().add(behindVec);
 
         playerPos.set(targetPos.x, enemyMesh.position.y, targetPos.z);
-        // 敵の方を向く
         yaw = enemyRotY;
         pitch = 0;
 
@@ -923,7 +918,6 @@
         return;
       }
 
-      // 他の必殺技はチャージ消費
       ultCharge = 0;
       updateHudBars();
 
@@ -958,7 +952,7 @@
         conn.send({ type: 'curse_sphere_anim', x: centerPos.x, y: centerPos.y, z: centerPos.z });
       }
 
-      if (enemyMesh.visible) {
+      if (enemyMesh.visible && hasEnemyPosition) {
         const enemyCenter = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
         const dist = centerPos.distanceTo(enemyCenter);
         if (dist <= 15.0) {
@@ -989,13 +983,12 @@
       expand();
     }
 
-    // ★メガビーム：強化版（0.2秒毎に4ダメ、貫通後2ダメ）
     function checkBeamDamage(delta, beamOrigin, beamDir) {
       beamDamageTick += delta;
       if (beamDamageTick < 0.2) return;
       beamDamageTick = 0;
 
-      if (!enemyMesh.visible) return;
+      if (!enemyMesh.visible || !hasEnemyPosition) return;
 
       const raycaster = new THREE.Raycaster(beamOrigin, beamDir, 0.1, 65);
       const hits = raycaster.intersectObjects(obstacleMeshes);
@@ -1016,7 +1009,6 @@
               break;
             }
           }
-          // 強化：貫通前4ダメージ / 貫通後2ダメージ
           const dmg = obstacleInFront ? 2 : 4;
           if (conn && conn.open) {
             conn.send({ type: 'beam_damage', dmg });
@@ -1025,7 +1017,7 @@
       }
     }
 
-    // --- 10. コンパス ＆ ミニマップ ---
+    // --- 10. コンパス ＆ ミニマップ (敵初期位置バグ修正) ---
     const compCtx = document.getElementById('compass-canvas').getContext('2d');
     function renderCompass() {
       compCtx.clearRect(0, 0, 260, 32);
@@ -1053,7 +1045,8 @@
         mapCtx.fillRect((o.x + 35) * mapScale - (o.w * mapScale)/2, (o.z + 35) * mapScale - (o.d * mapScale)/2, o.w * mapScale, o.d * mapScale);
       });
 
-      if (enemyMesh.visible) {
+      // ★位置受信済みの時のみ敵を表示（中央への誤表示を完全防止）
+      if (enemyMesh.visible && hasEnemyPosition) {
         mapCtx.fillStyle = '#ff4757';
         mapCtx.beginPath();
         mapCtx.arc((enemyMesh.position.x + 35) * mapScale, (enemyMesh.position.z + 35) * mapScale, 3.5, 0, Math.PI * 2);
@@ -1083,7 +1076,6 @@
       requestAnimationFrame(animate);
       const delta = Math.min(clock.getDelta(), 0.1);
 
-      // 無敵タイマー
       if (respawnInvincibleTimer > 0) {
         respawnInvincibleTimer -= delta;
         document.getElementById('invincible-overlay').style.opacity = '1';
@@ -1093,14 +1085,12 @@
         }
       }
 
-      // ⑥ オートヒール処理 (毎秒10HP回復)
       if (autoHealTimer > 0) {
         autoHealTimer -= delta;
         myHp = Math.min(100, myHp + 10 * delta);
         updateHudBars();
       }
 
-      // ⑤ クイックワープ3秒失効タイマー
       if (selectedUltType === 'warp' && ultCharge >= 3) {
         warpExpireTimer -= delta;
         updateHudBars();
@@ -1147,22 +1137,24 @@
       } else if (beamFiring) {
         beamTimer -= delta;
 
+        // ★メガビーム三人称視点：上空からのハイアングル見下ろし視点に修正！
         const chestPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.2, playerPos.z);
         const backDir = lockedAimDir.clone().negate();
-        let targetCamDist = 3.5;
+        let targetCamDist = 3.8;
 
-        const wallRay = new THREE.Raycaster(chestPos, backDir, 0.2, 3.5);
+        const wallRay = new THREE.Raycaster(chestPos, backDir, 0.2, 3.8);
         const wallHits = wallRay.intersectObjects(obstacleMeshes);
         if (wallHits.length > 0) {
           targetCamDist = Math.max(0.8, wallHits[0].distance - 0.3);
         }
 
+        // 高さを +2.5m に上げて上からの見下ろし視点に
         camera.position.set(
           playerPos.x + backDir.x * targetCamDist,
-          playerPos.y + 1.2 + 1.0 * (targetCamDist / 3.5),
+          playerPos.y + 1.2 + 2.4 * (targetCamDist / 3.8),
           playerPos.z + backDir.z * targetCamDist
         );
-        camera.lookAt(playerPos.x + lockedAimDir.x * 10, playerPos.y + 1.2, playerPos.z + lockedAimDir.z * 10);
+        camera.lookAt(playerPos.x + lockedAimDir.x * 12, playerPos.y + 0.8, playerPos.z + lockedAimDir.z * 12);
 
         myAvatar.position.set(playerPos.x, playerPos.y, playerPos.z);
         myAvatar.rotation.y = yaw;
@@ -1181,7 +1173,6 @@
         }
       }
 
-      // フルシールド同期
       if (fullShieldTimer > 0) {
         fullShieldTimer -= delta;
         myFullShield.visible = true;
@@ -1194,7 +1185,6 @@
       if (superMagicTimer > 0) superMagicTimer -= delta;
       if (curseDebuffTimer > 0) curseDebuffTimer -= delta;
 
-      // HUDバフ表示
       const buffList = [];
       if (respawnInvincibleTimer > 0) buffList.push(`<span style="color:#f1c40f">無敵時間 (${respawnInvincibleTimer.toFixed(1)}s)</span>`);
       if (autoHealTimer > 0) buffList.push(`<span style="color:#2ecc71">オートヒール (${autoHealTimer.toFixed(1)}s)</span>`);
@@ -1203,15 +1193,14 @@
       if (curseDebuffTimer > 0) buffList.push(`<span style="color:#ff7675">呪い鈍足・跳躍低下 (${curseDebuffTimer.toFixed(1)}s)</span>`);
       document.getElementById('active-buff').innerHTML = buffList.join(' | ');
 
-      // ★シールド見た目バグの完全撲滅処理
+      // 操作・物理
       if (isLocked && !isDead) {
-        // 左長押し(170ms超)、右クリック(buttons bit 2)、Fキーのいずれかが「現実に」入力されている時だけガード
         const isLeftHolding = (mouseButtonsState & 1) && (Date.now() - leftDownTime >= 170);
         const isRightActive = (mouseButtonsState & 2) !== 0;
         const isFActive = !!keys['KeyF'];
 
         isGuarding = (isLeftHolding || isRightActive || isFActive) && !isOverheated && myMp > 0 && !beamFiring;
-        myShield.visible = isGuarding; // 条件が偽なら100% falseになる
+        myShield.visible = isGuarding;
 
         if (superMagicTimer <= 0) {
           if (isGuarding) {
@@ -1268,6 +1257,14 @@
           playerPos.z = resolved.z;
         }
 
+        // ★ジャンプボタン長押しによる連続跳躍（バニーホップ）処理
+        const isJumpHeld = !!(keys['Space'] || keys['ShiftLeft'] || keys['ShiftRight']);
+        if (isJumpHeld && isGrounded) {
+          const jPower = (curseDebuffTimer > 0 || beamFiring) ? 5 : 10;
+          velocityY = jPower;
+          isGrounded = false;
+        }
+
         const prevY = playerPos.y;
         velocityY += gravity * delta;
         playerPos.y += velocityY * delta;
@@ -1287,7 +1284,6 @@
           isGrounded = false;
         }
 
-        // 30Hz送信
         networkTimer += delta;
         if (networkTimer >= 0.033) {
           networkTimer = 0;
@@ -1315,7 +1311,6 @@
         renderCompass();
         renderMinimap();
       } else {
-        // ロックが外れている時や死亡時は絶対にシールド非表示
         myShield.visible = false;
       }
 
@@ -1348,7 +1343,7 @@
         }
         if (s.group.position.y <= 0.2 || s.group.position.y >= 15.8) collided = true;
 
-        if (s.isMine && enemyMesh.visible) {
+        if (s.isMine && enemyMesh.visible && hasEnemyPosition) {
           const enemyCenter = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
           if (s.group.position.distanceTo(enemyCenter) < 1.25) {
             collided = true;
@@ -1360,7 +1355,8 @@
           const myCenter = new THREE.Vector3(playerPos.x, playerPos.y + 0.9, playerPos.z);
           if (s.group.position.distanceTo(myCenter) < 1.25) {
             collided = true;
-            let damage = 25;
+            // ★通常弾ダメージを20に変更
+            let damage = 20;
 
             if (respawnInvincibleTimer > 0) {
               damage = 0;
@@ -1369,14 +1365,14 @@
               if (conn && conn.open) conn.send({ type: 'hit_confirmed' });
 
               if (fullShieldTimer > 0) {
-                damage *= 0.4;
+                damage *= 0.4; // 20 * 0.4 = 8
                 createExplosion(s.group.position, 0xf1c40f);
               } else if (isGuarding) {
                 const camDir = new THREE.Vector3();
                 camera.getWorldDirection(camDir);
                 const bDir = new THREE.Vector3(s.vx, 0, s.vz).normalize();
                 if (camDir.dot(bDir) < -0.3) {
-                  damage = 6;
+                  damage = 5; // ガード成功時5ダメージ
                   if (superMagicTimer <= 0) {
                     myMp = Math.max(0, myMp - 30);
                     if (myMp <= 0) triggerOverheat();
