@@ -6,13 +6,13 @@
   <title>3D Magic FPS Duel - Bright Temple</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body { overflow: hidden; background: #74b9ff; font-family: sans-serif; }
+    body { overflow: hidden; background: #68a0d4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     #ui { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; }
     
-    /* 画面上部コンパスHUD */
+    /* 上部コンパスHUD */
     #compass-container {
       position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-      width: 260px; height: 32px; background: rgba(0, 0, 0, 0.45);
+      width: 260px; height: 32px; background: rgba(15, 20, 30, 0.65);
       border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px;
       overflow: hidden; backdrop-filter: blur(4px);
     }
@@ -30,61 +30,97 @@
     }
     #crosshair::after {
       content: ''; position: absolute; top: 5px; left: 5px; width: 2px; height: 2px;
-      background: #000; border-radius: 50%;
+      background: #fff; border-radius: 50%;
     }
 
-    #hud { position: absolute; bottom: 20px; left: 160px; color: #fff; }
-    .bar-label { font-size: 12px; font-weight: bold; margin-bottom: 2px; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
-    .bar-bg { width: 200px; height: 14px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+    /* ステータスHUD */
+    #hud { position: absolute; bottom: 20px; left: 160px; color: #fff; text-shadow: 1px 1px 3px #000; }
+    .bar-label { font-size: 11px; font-weight: bold; margin-bottom: 2px; display: flex; justify-content: space-between; width: 220px; }
+    .bar-bg { width: 220px; height: 12px; background: rgba(0,0,0,0.65); border: 2px solid #fff; border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
     #hp-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ff6b81); transition: width 0.15s; }
     #mp-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #0984e3, #00cec9); transition: width 0.08s; }
+    #ult-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #fdcb6e, #e17055); transition: width 0.15s; }
     
     .overheat {
       background: linear-gradient(90deg, #d63031, #e17055) !important;
       animation: blink 0.5s infinite alternate;
     }
+    .ult-ready {
+      background: linear-gradient(90deg, #f1c40f, #e67e22) !important;
+      box-shadow: 0 0 12px #f39c12;
+      animation: blink 0.4s infinite alternate;
+    }
     @keyframes blink { from { opacity: 0.4; } to { opacity: 1; } }
 
-    #info { margin-top: 4px; font-size: 14px; font-weight: bold; color: #fff; text-shadow: 1px 1px 3px #000; }
+    #info { margin-top: 4px; font-size: 13px; font-weight: bold; color: #fff; }
+    #active-buff { font-size: 12px; font-weight: bold; color: #ffeaa7; margin-top: 2px; }
 
     #minimap-container {
       position: absolute; bottom: 20px; left: 20px;
-      width: 125px; height: 125px; background: rgba(255, 255, 255, 0.85);
-      border: 2px solid #0984e3; border-radius: 6px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      width: 125px; height: 125px; background: rgba(240, 235, 225, 0.95);
+      border: 2px solid #0984e3; border-radius: 6px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.4);
     }
     #minimap { width: 100%; height: 100%; }
 
     #damage-overlay {
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: radial-gradient(circle, transparent 60%, rgba(255, 0, 0, 0.6) 100%);
+      background: radial-gradient(circle, transparent 55%, rgba(255, 0, 0, 0.75) 100%);
       opacity: 0; pointer-events: none; transition: opacity 0.1s ease-out;
     }
 
-    /* 初期参戦画面 */
+    /* 参戦前設定オーバーレイ */
     #overlay {
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(15, 25, 45, 0.9); display: flex; flex-direction: column;
-      align-items: center; justify-content: center; color: #fff; z-index: 20;
+      background: radial-gradient(circle at center, rgba(20, 30, 48, 0.96) 0%, rgba(10, 15, 25, 0.98) 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #fff; z-index: 30; overflow-y: auto; padding: 20px;
     }
-    #overlay h1 { font-size: 42px; margin-bottom: 12px; color: #00cec9; text-shadow: 0 0 20px #00cec9; letter-spacing: 3px; }
-    #overlay p { margin-bottom: 6px; font-size: 14px; color: #dfe6e9; }
-    .controls { margin-bottom: 24px; color: #b2bec3; font-size: 13px; line-height: 1.7; text-align: center; }
-    .btn {
-      padding: 12px 36px; font-size: 18px; background: #00cec9; color: #111;
-      border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
-      box-shadow: 0 0 15px rgba(0, 206, 201, 0.5);
-    }
-    .btn:hover { background: #81ecec; }
-    #room-input { padding: 10px; font-size: 16px; border-radius: 6px; border: 2px solid #00cec9; margin-bottom: 16px; text-align: center; background: #222; color: #fff; }
+    #overlay h1 { font-size: 38px; color: #00cec9; text-shadow: 0 0 20px #00cec9; letter-spacing: 3px; margin-bottom: 4px; }
+    #overlay .subtitle { font-size: 14px; color: #b2bec3; margin-bottom: 16px; }
 
-    /* 操作再開用クリック案内（Esc時やタブ移動時） */
+    .input-row { display: flex; gap: 12px; margin-bottom: 16px; width: 100%; max-width: 600px; }
+    .input-group { flex: 1; display: flex; flex-direction: column; text-align: left; }
+    .input-group label { font-size: 12px; font-weight: bold; margin-bottom: 4px; color: #81ecec; }
+    .input-group input {
+      padding: 10px; font-size: 15px; border-radius: 6px; border: 2px solid #00cec9;
+      background: #1e272e; color: #fff; outline: none; font-weight: bold;
+    }
+    .input-group input:focus { border-color: #81ecec; box-shadow: 0 0 8px #00cec9; }
+
+    .section-title { font-size: 14px; font-weight: bold; color: #ffeaa7; margin-bottom: 8px; text-align: left; width: 100%; max-width: 600px; }
+    .char-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+      width: 100%; max-width: 600px; margin-bottom: 20px;
+    }
+    .char-card {
+      background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 8px; padding: 12px; text-align: left; cursor: pointer; transition: all 0.2s;
+    }
+    .char-card:hover { background: rgba(0, 206, 201, 0.15); border-color: #00cec9; transform: translateY(-2px); }
+    .char-card.selected {
+      background: rgba(0, 206, 201, 0.25); border-color: #00cec9;
+      box-shadow: 0 0 12px rgba(0, 206, 201, 0.6);
+    }
+    .char-card .name { font-size: 15px; font-weight: bold; color: #00cec9; margin-bottom: 4px; display: flex; justify-content: space-between; }
+    .char-card .cost { font-size: 11px; background: #e17055; color: #fff; padding: 2px 6px; border-radius: 10px; }
+    .char-card .desc { font-size: 11px; color: #dfe6e9; line-height: 1.4; }
+
+    .controls-hint { font-size: 12px; color: #a4b0be; margin-bottom: 16px; text-align: center; line-height: 1.5; }
+    .btn {
+      padding: 12px 48px; font-size: 18px; background: #00cec9; color: #111;
+      border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+      box-shadow: 0 0 15px rgba(0, 206, 201, 0.5); transition: 0.2s;
+    }
+    .btn:hover { background: #81ecec; transform: scale(1.03); }
+
+    /* 再開オーバーレイ */
     #resume-overlay {
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.35); display: none; align-items: center;
-      justify-content: center; color: #fff; z-index: 10; cursor: pointer;
+      background: rgba(0, 0, 0, 0.4); display: none; align-items: center;
+      justify-content: center; color: #fff; z-index: 20; cursor: pointer;
     }
     #resume-overlay div {
-      padding: 16px 32px; background: rgba(0,0,0,0.7); border: 2px solid #00cec9;
+      padding: 16px 36px; background: rgba(0,0,0,0.85); border: 2px solid #00cec9;
       border-radius: 8px; font-size: 20px; font-weight: bold; letter-spacing: 1px;
     }
   </style>
@@ -97,7 +133,6 @@
   <div id="damage-overlay"></div>
 
   <div id="ui">
-    <!-- 上部コンパス -->
     <div id="compass-container">
       <div id="compass-needle"></div>
       <canvas id="compass-canvas" width="260" height="32"></canvas>
@@ -110,24 +145,62 @@
     </div>
 
     <div id="hud">
-      <div class="bar-label">HP</div>
+      <div class="bar-label"><span>HP</span><span id="hp-text">100 / 100</span></div>
       <div class="bar-bg"><div id="hp-bar"></div></div>
-      <div class="bar-label" id="mp-label">MP (MANA)</div>
+
+      <div class="bar-label"><span id="mp-label">MP (MANA)</span><span id="mp-text">100 / 100</span></div>
       <div class="bar-bg"><div id="mp-bar"></div></div>
+
+      <div class="bar-label"><span id="ult-label">ULT (【E】キー発動)</span><span id="ult-text">0 / 6 (HIT)</span></div>
+      <div class="bar-bg"><div id="ult-bar"></div></div>
+
       <div id="info">合言葉を入力して参戦</div>
+      <div id="active-buff"></div>
     </div>
   </div>
 
+  <!-- 開始前設定画面 -->
   <div id="overlay">
     <h1>TEMPLE OF MAGIC</h1>
-    <p>3D 一人称 魔法決闘アリーナ</p>
-    <p class="controls">
+    <div class="subtitle">3D 一人称 魔法決闘アリーナ</div>
+
+    <div class="input-row">
+      <div class="input-group">
+        <label>プレイヤー名</label>
+        <input type="text" id="name-input" maxlength="10" value="魔導士A">
+      </div>
+      <div class="input-group">
+        <label>合言葉（ルームID）</label>
+        <input type="text" id="room-input" value="arena888">
+      </div>
+    </div>
+
+    <div class="section-title">必殺技スタイル（キャラタイプ）を選択</div>
+    <div class="char-grid">
+      <div class="char-card selected" data-ult="beam">
+        <div class="name">① メガビーム <span class="cost">命中 6回で溜まる</span></div>
+        <div class="desc">1秒の溜め後、5秒間極太貫通ビームを放射。視点固定＆低速化。0.2秒毎に2ダメ(壁貫通後は1ダメ)。</div>
+      </div>
+      <div class="char-card" data-ult="shield">
+        <div class="name">② フルシールド <span class="cost">命中 4回で溜まる</span></div>
+        <div class="desc">8秒間全方位に球状シールドを展開し被弾を防御！移動速度とジャンプ力は低下しない。</div>
+      </div>
+      <div class="char-card" data-ult="curse">
+        <div class="name">③ カースショック <span class="cost">命中 5回で溜まる</span></div>
+        <div class="desc">半径15mの巨大衝撃波球を展開。当たった敵のMPを0(即オーバーヒート)にし、10秒間移動・跳躍を激減！</div>
+      </div>
+      <div class="char-card" data-ult="super">
+        <div class="name">④ スーパーマジック <span class="cost">命中 6回で溜まる</span></div>
+        <div class="desc">MP全回復＋10秒間MP消費ゼロ＋移動速度1.5倍！オーバーヒートも即時解除。</div>
+      </div>
+    </div>
+
+    <div class="controls-hint">
       【WASD】移動　【SPACE】ジャンプ　【マウス】照準<br>
-      【左クリック】魔法弾（MP25消費 / 12〜24なら全消費で悪あがき発射！）<br>
-      【長押し or 右クリック】ガード展開（維持毎秒15MP・被弾時MP-30）<br>
-      <span style="color:#ff7675;">※MP枯渇時は100%溜まりきるまで行動不能！</span>
-    </p>
-    <input type="text" id="room-input" placeholder="合言葉（ルーム名）" value="arena888">
+      【左クリック短押し】魔法弾発射　【左長押し or 右クリック】ガード展開<br>
+      【E】必殺技発動（MP消費なし・オーバーヒート時も使用可）
+    </div>
+
     <button class="btn" id="start-btn">参戦する</button>
   </div>
 
@@ -136,9 +209,9 @@
   </div>
 
   <script>
-    // --- 1. 明るい白昼の神殿シーン & ライティング ---
+    // --- 1. 3Dシーン & ライティング (コントラスト調整で視認性向上) ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xa0c4ff); // 爽やかな青空
+    scene.background = new THREE.Color(0x6ca3d8); // 落ち着いた空の色
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -146,24 +219,24 @@
     renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    // 半球ライト（空と地面の両方から光を当てて影を明るくする）
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xb0bec5, 1.8);
+    // 白飛びを防ぐため光量を適正化
+    const hemiLight = new THREE.HemisphereLight(0xfff5e6, 0x8c7b6c, 1.1);
     scene.add(hemiLight);
 
-    // 太陽光（メインの直射光）
-    const sunLight = new THREE.DirectionalLight(0xfffaed, 1.6);
+    const sunLight = new THREE.DirectionalLight(0xfffaed, 1.1);
     sunLight.position.set(40, 80, 30);
     sunLight.castShadow = true;
     scene.add(sunLight);
 
-    // --- 2. 神殿ステージ生成 (大理石トーン & 天井 & 登れる3段高台) ---
+    // --- 2. 神殿ステージ生成 (サンドストーン＆大理石調で視認性・雰囲気向上) ---
     const colliders = [];
+    const obstacleMeshes = [];
     const mapObstacles = [];
 
-    function addBox(x, y, z, w, h, d, color = 0xdcdde1) {
+    function addBox(x, y, z, w, h, d, color = 0xb5aa98) {
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(w, h, d),
-        new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.1 })
+        new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.05 })
       );
       mesh.position.set(x, y + h / 2, z);
       mesh.castShadow = true;
@@ -172,78 +245,78 @@
 
       const box = new THREE.Box3().setFromObject(mesh);
       colliders.push(box);
-      mapObstacles.push({ x, z, w, d });
+      obstacleMeshes.push(mesh);
+      mapObstacles.push({ x, z, w, d, color });
       return mesh;
     }
 
-    // 床（明るい石畳大理石）
-    const floorGeo = new THREE.PlaneGeometry(70, 70);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.6 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
+    // 床（温かみのある敷石テラスカラー）
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 70),
+      new THREE.MeshStandardMaterial({ color: 0xd2c7b5, roughness: 0.7 })
+    );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    const grid = new THREE.GridHelper(70, 35, 0x00cec9, 0xb2bec3);
+    const grid = new THREE.GridHelper(70, 35, 0x16a085, 0x95a5a6);
     grid.position.y = 0.02;
     scene.add(grid);
 
-    // 天井（地上16m）
-    const ceilingGeo = new THREE.PlaneGeometry(70, 70);
-    const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x747d8c, roughness: 0.8 });
-    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+    // 天井
+    const ceiling = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 70),
+      new THREE.MeshStandardMaterial({ color: 0x57606f, roughness: 0.8 })
+    );
     ceiling.position.y = 16;
     ceiling.rotation.x = Math.PI / 2;
     scene.add(ceiling);
 
-    // 外壁（高さ16mまで伸ばして天井と密着）
-    addBox(0, 0, -35, 70, 16, 2, 0xb2bec3);
-    addBox(0, 0, 35, 70, 16, 2, 0xb2bec3);
-    addBox(-35, 0, 0, 2, 16, 70, 0xb2bec3);
-    addBox(35, 0, 0, 2, 16, 70, 0xb2bec3);
+    // 外壁（重厚な外周石壁）
+    const wallColor = 0x8a7f70;
+    addBox(0, 0, -35, 70, 16, 2, wallColor);
+    addBox(0, 0, 35, 70, 16, 2, wallColor);
+    addBox(-35, 0, 0, 2, 16, 70, 0x807566);
+    addBox(35, 0, 0, 2, 16, 70, 0x807566);
 
-    // ★中央高台：3段すべてジャンプで登れるピラミッドテラス
-    // 1段目: 高さ2.2m (天面 y=2.2)
-    addBox(0, 0, 0, 16, 2.2, 16, 0xdcdde1);
-    // 2段目: 高さ1.4m (天面 y=3.6)
-    addBox(0, 2.2, 0, 10, 1.4, 10, 0xc8d6e5);
-    // 3段目: 高さ1.4m (天面 y=5.0) 最上段テラス！天面広さ4m×4m
-    addBox(0, 3.6, 0, 4.5, 1.4, 4.5, 0x00cec9);
+    // ★中央テラス高台 (段ごとにコントラストをつけて見やすく)
+    addBox(0, 0, 0, 16, 2.2, 16, 0xa69a88);          // 1段目
+    addBox(0, 2.2, 0, 10, 1.4, 10, 0x8f8371);        // 2段目
+    addBox(0, 3.6, 0, 4.5, 1.4, 4.5, 0xd4af37);      // 3段目 (頂上ゴールドテラス)
+    // 踏み台
+    addBox(0, 0, 10.5, 4, 1.1, 3, 0xa69a88);
+    addBox(0, 0, -10.5, 4, 1.1, 3, 0xa69a88);
+    addBox(10.5, 0, 0, 3, 1.1, 4, 0xa69a88);
+    addBox(-10.5, 0, 0, 3, 1.1, 4, 0xa69a88);
 
-    // 高台への踏み台ブロック（地上から1段目へ登りやすくする高さ1.1mのステップ）
-    addBox(0, 0, 10.5, 4, 1.1, 3, 0xdcdde1);
-    addBox(0, 0, -10.5, 4, 1.1, 3, 0xdcdde1);
-    addBox(10.5, 0, 0, 3, 1.1, 4, 0xdcdde1);
-    addBox(-10.5, 0, 0, 3, 1.1, 4, 0xdcdde1);
-
-    // 迷路壁
+    // 迷路壁（神殿の石壁カラー）
     const mazeWalls = [
       [-16, -16, 12, 2], [-16, 16, 12, 2], [16, -16, 12, 2], [16, 16, 12, 2],
       [-22, 0, 2, 16], [22, 0, 2, 16],
       [-8, -24, 2, 10], [8, -24, 2, 10], [-8, 24, 2, 10], [8, 24, 2, 10]
     ];
-    mazeWalls.forEach(([x, z, w, d]) => addBox(x, 0, z, w, 4.5, d, 0x95a5a6));
+    mazeWalls.forEach(([x, z, w, d]) => addBox(x, 0, z, w, 4.5, d, 0x7a6f60));
 
-    // 石柱
+    // 石柱 (アイボリー大理石)
     const pillarGeo = new THREE.CylinderGeometry(1.2, 1.4, 8, 16);
-    const pillarMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
-    const pillarPos = [[-12, -8], [12, -8], [-12, 8], [12, 8], [-25, -25], [25, 25], [-25, 25], [25, -25]];
-    pillarPos.forEach(([x, z]) => {
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0xdfd9ce, roughness: 0.5 });
+    [[-12, -8], [12, -8], [-12, 8], [12, 8], [-25, -25], [25, 25], [-25, 25], [25, -25]].forEach(([x, z]) => {
       const p = new THREE.Mesh(pillarGeo, pillarMat);
       p.position.set(x, 4.0, z);
       p.castShadow = true;
+      p.receiveShadow = true;
       scene.add(p);
       colliders.push(new THREE.Box3().setFromObject(p));
-      mapObstacles.push({ x, z, w: 2.8, d: 2.8 });
+      obstacleMeshes.push(p);
+      mapObstacles.push({ x, z, w: 2.8, d: 2.8, color: 0xdfd9ce });
     });
 
-    // --- 3. 自機 & 敵シールド ---
+    // --- 3. 自機 & 敵アバター ---
     function createShieldMesh(colorHex = 0x00cec9) {
-      const shieldGeo = new THREE.CircleGeometry(1.0, 6);
-      const shieldMat = new THREE.MeshBasicMaterial({
-        color: colorHex, transparent: true, opacity: 0.5, side: THREE.DoubleSide
-      });
-      const shield = new THREE.Mesh(shieldGeo, shieldMat);
+      const shield = new THREE.Mesh(
+        new THREE.CircleGeometry(1.0, 6),
+        new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+      );
       shield.visible = false;
       return shield;
     }
@@ -253,6 +326,20 @@
     camera.add(myShield);
     scene.add(camera);
 
+    // フルシールド用球体
+    function createFullShieldSphere(colorHex) {
+      const geo = new THREE.SphereGeometry(1.6, 20, 20);
+      const mat = new THREE.MeshBasicMaterial({
+        color: colorHex, transparent: true, opacity: 0.4, wireframe: true
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      return mesh;
+    }
+    const myFullShield = createFullShieldSphere(0xf1c40f);
+    scene.add(myFullShield);
+
+    // 敵メッシュ
     const enemyMesh = new THREE.Group();
     const enemyBody = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.7, 16), new THREE.MeshStandardMaterial({ color: 0xff4757 }));
     enemyBody.position.y = 0.85;
@@ -260,26 +347,118 @@
     enemyHead.position.y = 1.8;
     const enemyShield = createShieldMesh(0xff4757);
     enemyShield.position.set(0, 1.2, -0.8);
-    enemyMesh.add(enemyBody, enemyHead, enemyShield);
+    
+    const enemyFullShield = createFullShieldSphere(0xff4757);
+    enemyFullShield.position.set(0, 1.0, 0);
+
+    function makeTextSprite(message) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.roundRect ? ctx.roundRect(10, 10, 236, 44, 10) : ctx.fillRect(10, 10, 236, 44);
+      ctx.fill();
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(message, 128, 40);
+      const texture = new THREE.CanvasTexture(canvas);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
+      sprite.scale.set(2.5, 0.62, 1);
+      return sprite;
+    }
+    let enemyNameTag = makeTextSprite("相手");
+    enemyNameTag.position.set(0, 2.5, 0);
+
+    enemyMesh.add(enemyBody, enemyHead, enemyShield, enemyFullShield, enemyNameTag);
     enemyMesh.visible = false;
     scene.add(enemyMesh);
 
-    // --- 4. 物理 & 安全スポーン ---
+    // --- 4. 必殺技の3Dオブジェクト（ビーム・衝撃波球・チャージ光） ---
+    // ① メガビーム (二重構造：白コア＋色付きオーラで視認性抜群)
+    function createBeamGroup(colorHex) {
+      const group = new THREE.Group();
+      // 外側オーラ
+      const outerGeo = new THREE.CylinderGeometry(1.2, 1.2, 60, 16);
+      outerGeo.rotateX(Math.PI / 2);
+      outerGeo.translate(0, 0, -30);
+      const outerMat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.65, depthWrite: false });
+      const outer = new THREE.Mesh(outerGeo, outerMat);
+
+      // 内側純白コア
+      const innerGeo = new THREE.CylinderGeometry(0.45, 0.45, 60, 16);
+      innerGeo.rotateX(Math.PI / 2);
+      innerGeo.translate(0, 0, -30);
+      const innerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthWrite: false });
+      const inner = new THREE.Mesh(innerGeo, innerMat);
+
+      group.add(outer, inner);
+      group.visible = false;
+      return group;
+    }
+    const myBeam = createBeamGroup(0x00ffff);
+    scene.add(myBeam);
+    const enemyBeam = createBeamGroup(0xff2255);
+    scene.add(enemyBeam);
+
+    // メガビーム溜め中のエネルギー光球
+    const chargeBall = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.8 })
+    );
+    chargeBall.visible = false;
+    scene.add(chargeBall);
+
+    // ③ カースショック (全方位半透明球体)
+    const shockSphereGeo = new THREE.SphereGeometry(1, 24, 24);
+    const shockMat = new THREE.MeshBasicMaterial({
+      color: 0x9b59b6, transparent: true, opacity: 0.45, wireframe: true, depthWrite: false, side: THREE.DoubleSide
+    });
+    const shockSphere = new THREE.Mesh(shockSphereGeo, shockMat);
+    shockSphere.visible = false;
+    scene.add(shockSphere);
+
+    // --- 5. プレイヤー状態 ---
     const playerRadius = 0.45;
     const eyeHeight = 1.7;
     let velocityY = 0;
     const gravity = -28;
-    const jumpStrength = 10;
     let isGrounded = false;
+
+    let playerName = "魔導士A";
+    let selectedUltType = "beam";
+    const ultConfig = {
+      beam:   { name: "メガビーム", req: 6 },
+      shield: { name: "フルシールド", req: 4 },
+      curse:  { name: "カースショック", req: 5 },
+      super:  { name: "スーパーマジック", req: 6 }
+    };
+
     let myHp = 100;
     let myMp = 100;
+    let ultCharge = 0;
     let isOverheated = false;
     let isGuarding = false;
     let isGameStarted = false;
 
-    const safeSpawns = [
-      { x: 0, z: -28 }, { x: 0, z: 28 }, { x: -28, z: 0 }, { x: 28, z: 0 }
-    ];
+    // バフ/デバフ・必殺技タイマー
+    let curseDebuffTimer = 0;
+    let superMagicTimer = 0;
+    let fullShieldTimer = 0;
+
+    // メガビーム用
+    let beamCharging = false;
+    let beamFiring = false;
+    let beamTimer = 0;
+    let beamDamageTick = 0;
+    let lockedQuaternion = new THREE.Quaternion();
+
+    // ★必殺技が現在使用中か判定する関数（この間はゲージがたまらない）
+    function isAnyUltActive() {
+      return beamCharging || beamFiring || (fullShieldTimer > 0) || (superMagicTimer > 0);
+    }
+
+    const safeSpawns = [ { x: 0, z: -28 }, { x: 0, z: 28 }, { x: -28, z: 0 }, { x: 28, z: 0 } ];
 
     function resetSpawn() {
       const s = safeSpawns[Math.floor(Math.random() * safeSpawns.length)];
@@ -288,13 +467,42 @@
       myHp = 100;
       myMp = 100;
       isOverheated = false;
-      document.getElementById('hp-bar').style.width = '100%';
-      document.getElementById('mp-bar').style.width = '100%';
-      document.getElementById('mp-bar').classList.remove('overheat');
+      curseDebuffTimer = 0;
+      superMagicTimer = 0;
+      fullShieldTimer = 0;
+      beamCharging = false;
+      beamFiring = false;
+      myBeam.visible = false;
+      chargeBall.visible = false;
+      updateHudBars();
       document.getElementById('mp-label').innerText = 'MP (MANA)';
       document.getElementById('mp-label').style.color = '#fff';
+      document.getElementById('active-buff').innerText = '';
     }
-    resetSpawn();
+
+    function updateHudBars() {
+      document.getElementById('hp-bar').style.width = `${Math.max(0, myHp)}%`;
+      document.getElementById('hp-text').innerText = `${Math.ceil(Math.max(0, myHp))} / 100`;
+
+      document.getElementById('mp-bar').style.width = `${Math.max(0, myMp)}%`;
+      document.getElementById('mp-text').innerText = `${Math.ceil(Math.max(0, myMp))} / 100`;
+
+      const req = ultConfig[selectedUltType].req;
+      const pct = Math.min(100, (ultCharge / req) * 100);
+      const ultBar = document.getElementById('ult-bar');
+      ultBar.style.width = `${pct}%`;
+      document.getElementById('ult-text').innerText = `${Math.min(req, ultCharge)} / ${req} (HIT)`;
+
+      if (ultCharge >= req) {
+        ultBar.classList.add('ult-ready');
+        document.getElementById('ult-label').innerText = `★ULT READY! 【E】発動`;
+        document.getElementById('ult-label').style.color = '#f1c40f';
+      } else {
+        ultBar.classList.remove('ult-ready');
+        document.getElementById('ult-label').innerText = `ULT (【E】キー発動)`;
+        document.getElementById('ult-label').style.color = '#fff';
+      }
+    }
 
     function resolveCollision(newX, newZ) {
       let finalX = newX, finalZ = newZ;
@@ -313,14 +521,12 @@
       for (let box of colliders) {
         if (box.intersectsBox(playerBox)) { finalZ = camera.position.z; break; }
       }
-
       return { x: finalX, z: finalZ };
     }
 
     function checkGround(py) {
       let groundLevel = 0;
       const pFoot = py - eyeHeight;
-
       for (let box of colliders) {
         if (camera.position.x >= box.min.x - playerRadius && camera.position.x <= box.max.x + playerRadius &&
             camera.position.z >= box.min.z - playerRadius && camera.position.z <= box.max.z + playerRadius) {
@@ -332,35 +538,31 @@
       return groundLevel + eyeHeight;
     }
 
-    // --- 5. 魔法弾 & 爆発 ---
+    // --- 6. 魔法弾 & 爆発エフェクト ---
     const spells = [];
     const particles = [];
 
     function createExplosion(pos, colorHex = 0x00f2fe) {
-      const pLight = new THREE.PointLight(colorHex, 5, 8);
+      const pLight = new THREE.PointLight(colorHex, 4, 7);
       pLight.position.copy(pos);
       scene.add(pLight);
       setTimeout(() => scene.remove(pLight), 100);
 
-      const count = 22;
-      const pGeo = new THREE.SphereGeometry(0.12, 6, 6);
-      const pMat = new THREE.MeshBasicMaterial({ color: colorHex });
-
-      for (let i = 0; i < count; i++) {
-        const pMesh = new THREE.Mesh(pGeo, pMat);
+      for (let i = 0; i < 18; i++) {
+        const pMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: colorHex }));
         pMesh.position.copy(pos);
         scene.add(pMesh);
-        const v = new THREE.Vector3((Math.random() - 0.5) * 16, Math.random() * 12 + 1, (Math.random() - 0.5) * 16);
-        particles.push({ mesh: pMesh, v, life: 0.5 + Math.random() * 0.3 });
+        const v = new THREE.Vector3((Math.random() - 0.5) * 14, Math.random() * 10 + 1, (Math.random() - 0.5) * 14);
+        particles.push({ mesh: pMesh, v, life: 0.45 + Math.random() * 0.25 });
       }
     }
 
     function spawnSpell(x, y, z, vx, vy, vz, isMine) {
       const color = isMine ? 0x0984e3 : 0xff4757;
       const spellGroup = new THREE.Group();
-      const core = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 10), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 }));
-      const light = new THREE.PointLight(color, 3, 6);
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 10), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75 }));
+      const light = new THREE.PointLight(color, 2.5, 5);
       spellGroup.add(core, glow, light);
       spellGroup.position.set(x, y, z);
       scene.add(spellGroup);
@@ -375,12 +577,12 @@
       setTimeout(() => { overlay.style.opacity = '0'; }, 180);
     }
 
-    // --- 6. P2P通信 ---
+    // --- 7. P2P通信 (PeerJS) ---
     let peer = null, conn = null;
 
     function initNetwork(roomId) {
-      const hostId = `temple-fps-${roomId}-host`;
-      const guestId = `temple-fps-${roomId}-guest`;
+      const hostId = `temple-magic-fix-${roomId}-host`;
+      const guestId = `temple-magic-fix-${roomId}-guest`;
 
       peer = new Peer(hostId);
       peer.on('open', () => { document.getElementById('info').innerText = '相手の参加を待機中...'; });
@@ -397,55 +599,117 @@
       enemyMesh.visible = true;
       document.getElementById('info').innerText = '対戦開始！';
 
+      conn.on('open', () => {
+        conn.send({ type: 'handshake', name: playerName });
+      });
+
       conn.on('data', (data) => {
-        if (data.type === 'move') {
+        if (data.type === 'handshake') {
+          enemyMesh.remove(enemyNameTag);
+          enemyNameTag = makeTextSprite(data.name || "相手");
+          enemyNameTag.position.set(0, 2.5, 0);
+          enemyMesh.add(enemyNameTag);
+        } else if (data.type === 'move') {
           enemyMesh.position.set(data.x, data.y - eyeHeight, data.z);
           enemyMesh.rotation.y = data.rot;
           enemyShield.visible = data.isGuarding;
+          enemyFullShield.visible = data.hasFullShield;
         } else if (data.type === 'shoot') {
           spawnSpell(data.x, data.y, data.z, data.vx, data.vy, data.vz, false);
+        } else if (data.type === 'hit_confirmed') {
+          // ★相手から命中が確定した連絡が届いた時だけULTゲージを増やす！
+          if (!isAnyUltActive()) {
+            const req = ultConfig[selectedUltType].req;
+            if (ultCharge < req) {
+              ultCharge++;
+              updateHudBars();
+            }
+          }
         } else if (data.type === 'enemyKilled') {
           document.getElementById('info').innerText = '相手を撃破しました！';
+        } else if (data.type === 'ult_curse_hit') {
+          // カースショック被弾
+          myMp = 0;
+          triggerOverheat();
+          curseDebuffTimer = 10.0;
+          triggerHitEffect();
+          document.getElementById('info').innerText = 'カースショック被弾！10秒間MPゼロ＆鈍足！';
+        } else if (data.type === 'curse_sphere_anim') {
+          triggerCurseSphereVisual(new THREE.Vector3(data.x, data.y, data.z));
+        } else if (data.type === 'ult_beam_start') {
+          enemyBeam.visible = true;
+          enemyBeam.position.set(data.x, data.y, data.z);
+          enemyBeam.quaternion.set(data.qx, data.qy, data.qz, data.qw);
+        } else if (data.type === 'ult_beam_update') {
+          enemyBeam.position.set(data.x, data.y, data.z);
+          enemyBeam.quaternion.set(data.qx, data.qy, data.qz, data.qw);
+        } else if (data.type === 'ult_beam_end') {
+          enemyBeam.visible = false;
+        } else if (data.type === 'beam_damage') {
+          // ★メガビーム被弾処理
+          if (myHp > 0) {
+            let dmg = data.dmg;
+            if (fullShieldTimer > 0) {
+              dmg = 0; // フルシールド無効化
+            }
+            if (dmg > 0) {
+              myHp = Math.max(0, myHp - dmg);
+              triggerHitEffect();
+              updateHudBars();
+              if (myHp <= 0) {
+                document.getElementById('info').innerText = '撃破されました！リスポーン中...';
+                if (conn && conn.open) conn.send({ type: 'enemyKilled' });
+                setTimeout(() => {
+                  resetSpawn();
+                  document.getElementById('info').innerText = '戦闘中';
+                }, 3000);
+              }
+            }
+          }
         }
       });
     }
 
-    // --- 7. 操作入力（ポインターロック保持＆悪あがき発射） ---
+    // --- 8. 入力 & バリア・発射の独立判定 ---
     let isLocked = false;
     let pitch = 0, yaw = 0;
     const keys = {};
-    let mouseDownTime = 0;
-    let isMouseDown = false;
-    let isRightDown = false;
+    let leftMouseDown = false;
+    let leftDownStartTime = 0;
+    let rightMouseDown = false;
     let lastShootTime = 0;
 
-    const overlay = document.getElementById('overlay');
-    const resumeOverlay = document.getElementById('resume-overlay');
+    // キャラ選択UI
+    document.querySelectorAll('.char-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedUltType = card.getAttribute('data-ult');
+      });
+    });
 
     document.getElementById('start-btn').addEventListener('click', () => {
-      const room = document.getElementById('room-input').value.trim() || 'default';
+      playerName = document.getElementById('name-input').value.trim() || '魔導士';
+      const room = document.getElementById('room-input').value.trim() || 'arena888';
       initNetwork(room);
+      resetSpawn();
       isGameStarted = true;
-      overlay.style.display = 'none';
+      document.getElementById('overlay').style.display = 'none';
       document.body.requestPointerLock();
     });
 
-    resumeOverlay.addEventListener('click', () => {
+    document.getElementById('resume-overlay').addEventListener('click', () => {
       document.body.requestPointerLock();
     });
 
-    // ★ポインターロック解除時にホームに戻さない修正
     document.addEventListener('pointerlockchange', () => {
       isLocked = document.pointerLockElement === document.body;
-      if (!isLocked && isGameStarted && myHp > 0) {
-        resumeOverlay.style.display = 'flex';
-      } else {
-        resumeOverlay.style.display = 'none';
-      }
+      document.getElementById('resume-overlay').style.display = (!isLocked && isGameStarted && myHp > 0) ? 'flex' : 'none';
     });
 
     document.addEventListener('mousemove', (e) => {
       if (!isLocked) return;
+      if (beamFiring) return; // メガビーム中は視点固定
       yaw -= e.movementX * 0.0022;
       pitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, pitch - e.movementY * 0.0022));
     });
@@ -453,50 +717,62 @@
     window.addEventListener('keydown', (e) => {
       keys[e.code] = true;
       if (e.code === 'Space' && isGrounded && isLocked && myHp > 0) {
-        velocityY = jumpStrength;
+        const jPower = (curseDebuffTimer > 0 || beamFiring) ? 5 : 10;
+        velocityY = jPower;
         isGrounded = false;
       }
+      if (e.code === 'KeyE' && isLocked && myHp > 0) {
+        tryActivateUltimate();
+      }
     });
+
     window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-    // クリック発射（MP悪あがきショット判定）
+    // ★バリア展開時に弾が暴発しないよう短押しと長押しを明確に分離！
     window.addEventListener('mousedown', (e) => {
       if (!isLocked || myHp <= 0) return;
-
       if (e.button === 0) {
-        isMouseDown = true;
-        mouseDownTime = Date.now();
-
-        const now = Date.now();
-        if (now - lastShootTime >= 180) {
-          // ★MPが12以上あれば発射可能！
-          if (!isOverheated && myMp >= 12) {
-            tryFireSpell();
-            lastShootTime = now;
-          }
-        }
+        leftMouseDown = true;
+        leftDownStartTime = Date.now();
       } else if (e.button === 2) {
-        isRightDown = true;
+        rightMouseDown = true;
       }
     });
 
     window.addEventListener('mouseup', (e) => {
       if (!isLocked || myHp <= 0) return;
-      if (e.button === 0) isMouseDown = false;
-      else if (e.button === 2) isRightDown = false;
+      if (e.button === 0) {
+        const pressDuration = Date.now() - leftDownStartTime;
+        leftMouseDown = false;
+
+        // 短押し（180ms未満）かつガード発動前なら通常弾を発射！
+        if (pressDuration < 180 && !beamFiring && !beamCharging) {
+          const now = Date.now();
+          if (now - lastShootTime >= 180) {
+            if (!isOverheated && (myMp >= 12 || superMagicTimer > 0)) {
+              tryFireSpell();
+              lastShootTime = now;
+            }
+          }
+        }
+      } else if (e.button === 2) {
+        rightMouseDown = false;
+      }
     });
 
     window.addEventListener('contextmenu', (e) => e.preventDefault());
 
     function tryFireSpell() {
-      if (myMp >= 25) {
-        myMp -= 25;
-      } else {
-        // ★MPが12以上25未満：MP全消費してラストショット＆即オーバーヒート！
-        myMp = 0;
-        triggerOverheat();
+      if (superMagicTimer <= 0) {
+        if (myMp >= 25) {
+          myMp -= 25;
+        } else {
+          myMp = 0;
+          triggerOverheat();
+        }
       }
 
+      // ※必殺技ゲージは発射時ではなく「敵に命中時」に加算されるよう修正済み
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       const sx = camera.position.x + dir.x * 0.6;
@@ -516,73 +792,156 @@
       const mpBar = document.getElementById('mp-bar');
       mpBar.classList.add('overheat');
       const mpLabel = document.getElementById('mp-label');
-      mpLabel.innerText = 'OVERHEAT! (フル回復まで行動不能)';
+      mpLabel.innerText = 'OVERHEAT! (全快まで行動不能)';
       mpLabel.style.color = '#ff7675';
     }
 
-    // --- 8. コンパス ＆ ミニマップ描画 ---
-    const compassCanvas = document.getElementById('compass-canvas');
-    const compCtx = compassCanvas.getContext('2d');
+    // --- 9. 必殺技の発動 ---
+    function tryActivateUltimate() {
+      const req = ultConfig[selectedUltType].req;
+      if (ultCharge < req) return;
+      if (isAnyUltActive()) return;
 
-    function renderCompass() {
-      compCtx.clearRect(0, 0, 260, 32);
-      // yawを度数（0〜360）に変換
-      let deg = ((-yaw * 180 / Math.PI) % 360 + 360) % 360;
+      ultCharge = 0;
+      updateHudBars();
 
-      compCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      compCtx.font = 'bold 12px sans-serif';
-      compCtx.textAlign = 'center';
+      if (selectedUltType === 'beam') {
+        // ① メガビーム (溜め時間を1秒に変更！)
+        beamCharging = true;
+        beamTimer = 1.0;
+        chargeBall.visible = true;
+        document.getElementById('info').innerText = 'メガビーム チャージ中...(1秒)';
+      } else if (selectedUltType === 'shield') {
+        // ② フルシールド
+        fullShieldTimer = 8.0;
+        document.getElementById('info').innerText = 'フルシールド展開！(8秒間被弾無効)';
+      } else if (selectedUltType === 'curse') {
+        // ③ カースショック (半透明球体で全方位へ)
+        activateCurseShock();
+      } else if (selectedUltType === 'super') {
+        // ④ スーパーマジック
+        myMp = 100;
+        isOverheated = false;
+        document.getElementById('mp-bar').classList.remove('overheat');
+        document.getElementById('mp-label').innerText = 'MP (MANA)';
+        document.getElementById('mp-label').style.color = '#fff';
+        superMagicTimer = 10.0;
+        document.getElementById('info').innerText = 'スーパーマジック発動！(MP無限＆超高速)';
+      }
+    }
 
-      const cardinal = [
-        { name: 'N', deg: 0 }, { name: 'E', deg: 90 },
-        { name: 'S', deg: 180 }, { name: 'W', deg: 270 }
-      ];
+    // カースショック (半径15mの半透明球体)
+    function activateCurseShock() {
+      const myPos = camera.position.clone();
+      triggerCurseSphereVisual(myPos);
+      if (conn && conn.open) {
+        conn.send({ type: 'curse_sphere_anim', x: myPos.x, y: myPos.y, z: myPos.z });
+      }
 
-      cardinal.forEach(c => {
-        let diff = (c.deg - deg + 540) % 360 - 180;
-        if (Math.abs(diff) < 70) {
-          const x = 130 + diff * 1.8;
-          compCtx.fillStyle = c.name === 'N' ? '#ff4757' : '#00cec9';
-          compCtx.fillText(c.name, x, 21);
-        }
-      });
-
-      // 目盛り線
-      compCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      compCtx.lineWidth = 1;
-      for (let i = 0; i < 360; i += 15) {
-        let diff = (i - deg + 540) % 360 - 180;
-        if (Math.abs(diff) < 70) {
-          const x = 130 + diff * 1.8;
-          compCtx.beginPath();
-          compCtx.moveTo(x, 26);
-          compCtx.lineTo(x, 32);
-          compCtx.stroke();
+      // 上下にいる敵にも当たるよう3D球体判定 (半径15m)
+      if (enemyMesh.visible) {
+        const enemyCenter = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+        const dist = camera.position.distanceTo(enemyCenter);
+        if (dist <= 15.0) {
+          if (conn && conn.open) conn.send({ type: 'ult_curse_hit' });
+          document.getElementById('info').innerText = 'カースショック命中！相手を弱体化！';
+        } else {
+          document.getElementById('info').innerText = 'カースショック発動！(射程外)';
         }
       }
     }
 
-    const mapCanvas = document.getElementById('minimap');
-    const mapCtx = mapCanvas.getContext('2d');
-    const mapScale = 125 / 70;
+    function triggerCurseSphereVisual(pos) {
+      shockSphere.position.copy(pos);
+      shockSphere.scale.set(0.1, 0.1, 0.1);
+      shockSphere.visible = true;
+      let s = 0.1;
+      const startTime = performance.now();
+      function expand() {
+        const elapsed = (performance.now() - startTime) / 1000;
+        s = 0.1 + (elapsed / 0.45) * 15;
+        shockSphere.scale.set(s, s, s);
+        shockSphere.material.opacity = Math.max(0, 0.45 * (1 - elapsed / 0.45));
+        if (elapsed < 0.45) {
+          requestAnimationFrame(expand);
+        } else {
+          shockSphere.visible = false;
+        }
+      }
+      expand();
+    }
 
+    // メガビームの貫通判定＆ダメージ
+    function checkBeamDamage(delta) {
+      beamDamageTick += delta;
+      if (beamDamageTick < 0.2) return;
+      beamDamageTick = 0;
+
+      if (!enemyMesh.visible) return;
+
+      const beamOrigin = camera.position.clone();
+      const beamDir = new THREE.Vector3();
+      camera.getWorldDirection(beamDir);
+
+      const raycaster = new THREE.Raycaster(beamOrigin, beamDir, 0.1, 60);
+      const hits = raycaster.intersectObjects(obstacleMeshes);
+
+      const enemyCenter = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+      const toEnemy = enemyCenter.clone().sub(beamOrigin);
+      const projDist = toEnemy.dot(beamDir);
+
+      if (projDist > 0 && projDist < 60) {
+        const closestPoint = beamOrigin.clone().addScaledVector(beamDir, projDist);
+        const distToLine = enemyCenter.distanceTo(closestPoint);
+
+        if (distToLine < 1.6) {
+          let obstacleInFront = false;
+          for (let hit of hits) {
+            if (hit.distance < projDist) {
+              obstacleInFront = true;
+              break;
+            }
+          }
+          const dmg = obstacleInFront ? 1 : 2;
+          if (conn && conn.open) {
+            conn.send({ type: 'beam_damage', dmg });
+          }
+        }
+      }
+    }
+
+    // --- 10. コンパス ＆ ミニマップ ---
+    const compCtx = document.getElementById('compass-canvas').getContext('2d');
+    function renderCompass() {
+      compCtx.clearRect(0, 0, 260, 32);
+      let deg = ((-yaw * 180 / Math.PI) % 360 + 360) % 360;
+      compCtx.font = 'bold 12px sans-serif';
+      compCtx.textAlign = 'center';
+
+      [{ name: 'N', deg: 0 }, { name: 'E', deg: 90 }, { name: 'S', deg: 180 }, { name: 'W', deg: 270 }].forEach(c => {
+        let diff = (c.deg - deg + 540) % 360 - 180;
+        if (Math.abs(diff) < 70) {
+          compCtx.fillStyle = c.name === 'N' ? '#ff4757' : '#00cec9';
+          compCtx.fillText(c.name, 130 + diff * 1.8, 21);
+        }
+      });
+    }
+
+    const mapCtx = document.getElementById('minimap').getContext('2d');
+    const mapScale = 125 / 70;
     function renderMinimap() {
-      mapCtx.fillStyle = 'rgba(236, 240, 241, 0.95)';
+      mapCtx.fillStyle = 'rgba(230, 225, 215, 0.95)';
       mapCtx.fillRect(0, 0, 125, 125);
 
-      mapCtx.fillStyle = '#b2bec3';
       mapObstacles.forEach(o => {
-        const mx = (o.x + 35) * mapScale - (o.w * mapScale) / 2;
-        const mz = (o.z + 35) * mapScale - (o.d * mapScale) / 2;
-        mapCtx.fillRect(mx, mz, o.w * mapScale, o.d * mapScale);
+        mapCtx.fillStyle = '#8a7f70';
+        mapCtx.fillRect((o.x + 35) * mapScale - (o.w * mapScale)/2, (o.z + 35) * mapScale - (o.d * mapScale)/2, o.w * mapScale, o.d * mapScale);
       });
 
       if (enemyMesh.visible) {
-        const ex = (enemyMesh.position.x + 35) * mapScale;
-        const ez = (enemyMesh.position.z + 35) * mapScale;
         mapCtx.fillStyle = '#ff4757';
         mapCtx.beginPath();
-        mapCtx.arc(ex, ez, 3.5, 0, Math.PI * 2);
+        mapCtx.arc((enemyMesh.position.x + 35) * mapScale, (enemyMesh.position.z + 35) * mapScale, 3.5, 0, Math.PI * 2);
         mapCtx.fill();
       }
 
@@ -601,41 +960,125 @@
       mapCtx.stroke();
     }
 
-    // --- 9. メインループ ---
+    // --- 11. メインループ ---
     const clock = new THREE.Clock();
 
     function animate() {
       requestAnimationFrame(animate);
       const delta = Math.min(clock.getDelta(), 0.1);
 
-      if (isLocked && myHp > 0) {
-        const isHoldingLeft = isMouseDown && (Date.now() - mouseDownTime >= 200);
-        isGuarding = (isHoldingLeft || isRightDown) && !isOverheated && myMp > 0;
-        myShield.visible = isGuarding;
+      // メガビーム処理
+      if (beamCharging) {
+        beamTimer -= delta;
+        document.getElementById('info').innerText = `メガビーム 溜め中... (${beamTimer.toFixed(1)}s)`;
+        
+        // 溜め中はカメラの少し前にチャージボールを表示
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        chargeBall.position.copy(camera.position).addScaledVector(dir, 1.2);
+        chargeBall.rotation.y += delta * 8;
 
-        if (isGuarding) {
-          myMp = Math.max(0, myMp - 15 * delta); // ガード消費：毎秒15MP
-          if (myMp <= 0) triggerOverheat();
-        } else {
-          myMp = Math.min(100, myMp + 10 * delta); // 回復：毎秒10MP
-          if (isOverheated && myMp >= 100) {
-            isOverheated = false;
-            document.getElementById('mp-bar').classList.remove('overheat');
-            document.getElementById('mp-label').innerText = 'MP (MANA)';
-            document.getElementById('mp-label').style.color = '#fff';
+        if (beamTimer <= 0) {
+          beamCharging = false;
+          chargeBall.visible = false;
+          beamFiring = true;
+          beamTimer = 5.0;
+          lockedQuaternion.copy(camera.quaternion);
+
+          myBeam.visible = true;
+          myBeam.position.copy(camera.position);
+          myBeam.quaternion.copy(camera.quaternion);
+
+          if (conn && conn.open) {
+            conn.send({
+              type: 'ult_beam_start',
+              x: camera.position.x, y: camera.position.y, z: camera.position.z,
+              qx: camera.quaternion.x, qy: camera.quaternion.y, qz: camera.quaternion.z, qw: camera.quaternion.w
+            });
           }
         }
-        document.getElementById('mp-bar').style.width = `${myMp}%`;
+      } else if (beamFiring) {
+        beamTimer -= delta;
+        // 視点固定
+        camera.quaternion.copy(lockedQuaternion);
+        myBeam.position.copy(camera.position);
+        myBeam.quaternion.copy(lockedQuaternion);
 
-        camera.rotation.order = 'YXZ';
-        let shakeX = 0, shakeY = 0;
-        if (shakeIntensity > 0) {
-          shakeX = (Math.random() - 0.5) * shakeIntensity;
-          shakeY = (Math.random() - 0.5) * shakeIntensity;
-          shakeIntensity -= delta * 1.2;
+        checkBeamDamage(delta);
+        document.getElementById('info').innerText = `メガビーム放射中！！ (${beamTimer.toFixed(1)}s)`;
+
+        if (conn && conn.open) {
+          conn.send({
+            type: 'ult_beam_update',
+            x: camera.position.x, y: camera.position.y, z: camera.position.z,
+            qx: camera.quaternion.x, qy: camera.quaternion.y, qz: camera.quaternion.z, qw: camera.quaternion.w
+          });
         }
-        camera.rotation.y = yaw + shakeX;
-        camera.rotation.x = pitch + shakeY;
+
+        if (beamTimer <= 0) {
+          beamFiring = false;
+          myBeam.visible = false;
+          if (conn && conn.open) conn.send({ type: 'ult_beam_end' });
+          document.getElementById('info').innerText = '戦闘中';
+        }
+      }
+
+      // フルシールド処理
+      if (fullShieldTimer > 0) {
+        fullShieldTimer -= delta;
+        myFullShield.visible = true;
+        myFullShield.position.copy(camera.position);
+        myFullShield.rotation.y += delta * 2;
+      } else {
+        myFullShield.visible = false;
+      }
+
+      if (superMagicTimer > 0) superMagicTimer -= delta;
+      if (curseDebuffTimer > 0) curseDebuffTimer -= delta;
+
+      // バフ状態表示
+      const buffList = [];
+      if (superMagicTimer > 0) buffList.push(`スーパーマジック (${superMagicTimer.toFixed(1)}s)`);
+      if (fullShieldTimer > 0) buffList.push(`フルシールド (${fullShieldTimer.toFixed(1)}s)`);
+      if (curseDebuffTimer > 0) buffList.push(`<span style="color:#ff7675">呪い鈍足・跳躍低下 (${curseDebuffTimer.toFixed(1)}s)</span>`);
+      document.getElementById('active-buff').innerHTML = buffList.join(' | ');
+
+      // 操作・移動処理
+      if (isLocked && myHp > 0) {
+        // ★左長押し（180ms超）または右クリックでガード
+        const isLeftHolding = leftMouseDown && (Date.now() - leftDownStartTime >= 180);
+        isGuarding = (isLeftHolding || rightMouseDown) && !isOverheated && myMp > 0 && !beamFiring;
+        myShield.visible = isGuarding;
+
+        if (superMagicTimer <= 0) {
+          if (isGuarding) {
+            myMp = Math.max(0, myMp - 15 * delta);
+            if (myMp <= 0) triggerOverheat();
+          } else {
+            myMp = Math.min(100, myMp + 10 * delta);
+            if (isOverheated && myMp >= 100) {
+              isOverheated = false;
+              document.getElementById('mp-bar').classList.remove('overheat');
+              document.getElementById('mp-label').innerText = 'MP (MANA)';
+              document.getElementById('mp-label').style.color = '#fff';
+            }
+          }
+        } else {
+          myMp = 100;
+        }
+        updateHudBars();
+
+        if (!beamFiring) {
+          camera.rotation.order = 'YXZ';
+          let shakeX = 0, shakeY = 0;
+          if (shakeIntensity > 0) {
+            shakeX = (Math.random() - 0.5) * shakeIntensity;
+            shakeY = (Math.random() - 0.5) * shakeIntensity;
+            shakeIntensity -= delta * 1.2;
+          }
+          camera.rotation.y = yaw + shakeX;
+          camera.rotation.x = pitch + shakeY;
+        }
 
         const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
         const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
@@ -648,7 +1091,12 @@
 
         if (moveVec.lengthSq() > 0) {
           moveVec.normalize();
-          const speed = isGuarding ? 5.5 : 11;
+          let speed = 11;
+          if (isGuarding) speed = 5.5;
+          if (curseDebuffTimer > 0) speed *= 0.45;
+          if (beamFiring) speed = 4.0;
+          if (superMagicTimer > 0) speed *= 1.5;
+
           const targetX = camera.position.x + moveVec.x * speed * delta;
           const targetZ = camera.position.z + moveVec.z * speed * delta;
           const resolved = resolveCollision(targetX, targetZ);
@@ -656,11 +1104,9 @@
           camera.position.z = resolved.z;
         }
 
-        // 垂直移動 & 接地判定
         velocityY += gravity * delta;
         camera.position.y += velocityY * delta;
 
-        // 天井制限（15.5m以上ジャンプできないように）
         if (camera.position.y > 15.2) {
           camera.position.y = 15.2;
           velocityY = 0;
@@ -682,7 +1128,8 @@
             y: camera.position.y,
             z: camera.position.z,
             rot: yaw,
-            isGuarding
+            isGuarding,
+            hasFullShield: fullShieldTimer > 0
           });
         }
 
@@ -702,7 +1149,7 @@
         }
       }
 
-      // 魔法弾更新 ＆ 衝突判定
+      // 魔法弾 ＆ 衝突判定
       const spellSphere = new THREE.Sphere(new THREE.Vector3(), 0.35);
       for (let i = spells.length - 1; i >= 0; i--) {
         const s = spells[i];
@@ -717,7 +1164,6 @@
         for (let box of colliders) {
           if (box.intersectsSphere(spellSphere)) { collided = true; break; }
         }
-        // 床または天井衝突
         if (s.group.position.y <= 0.2 || s.group.position.y >= 15.8) collided = true;
 
         // 自分の弾が敵に当たった
@@ -734,21 +1180,31 @@
             collided = true;
             let damage = 25;
 
-            if (isGuarding) {
+            // 相手に「命中確定」を送信（相手のULTゲージが溜まる）
+            if (conn && conn.open) conn.send({ type: 'hit_confirmed' });
+
+            if (fullShieldTimer > 0) {
+              damage = 0; // フルシールドは完全防御
+              createExplosion(s.group.position, 0xf1c40f);
+            } else if (isGuarding) {
               const camDir = new THREE.Vector3();
               camera.getWorldDirection(camDir);
               const bDir = new THREE.Vector3(s.vx, 0, s.vz).normalize();
               if (camDir.dot(bDir) < -0.3) {
                 damage = 6;
-                myMp = Math.max(0, myMp - 30);
-                if (myMp <= 0) triggerOverheat();
+                if (superMagicTimer <= 0) {
+                  myMp = Math.max(0, myMp - 30);
+                  if (myMp <= 0) triggerOverheat();
+                }
                 createExplosion(myShield.getWorldPosition(new THREE.Vector3()), 0x00cec9);
               }
             }
 
-            myHp -= damage;
-            triggerHitEffect();
-            document.getElementById('hp-bar').style.width = `${Math.max(0, myHp)}%`;
+            if (damage > 0) {
+              myHp -= damage;
+              triggerHitEffect();
+            }
+            updateHudBars();
 
             if (myHp <= 0) {
               document.getElementById('info').innerText = '撃破されました！リスポーン中...';
