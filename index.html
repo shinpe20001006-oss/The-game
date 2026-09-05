@@ -22,13 +22,12 @@
     /* 正確なコンパスHUD */
     #compass-container {
       position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-      width: 240px; height: 32px; background: rgba(0, 0, 0, 0.55);
+      width: 240px; height: 32px; background: rgba(0, 0, 0, 0.6);
       border: 1px solid #74b9ff; border-radius: 16px; overflow: hidden;
     }
     #compass-tape {
       display: flex; position: absolute; font-weight: bold; font-size: 14px;
       color: #fff; white-space: nowrap; height: 100%; align-items: center;
-      transition: transform 0.04s linear;
     }
     .compass-pointer {
       position: absolute; top: 0; left: 50%; transform: translateX(-50%);
@@ -50,6 +49,13 @@
 
     #info { margin-top: 4px; font-size: 13px; font-weight: bold; color: #2d3436; text-shadow: 0 0 4px #fff; }
 
+    /* 操作ガイド（ポインター外れ時） */
+    #click-to-focus {
+      position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6); color: #fff; padding: 6px 16px;
+      border-radius: 20px; font-size: 13px; display: none;
+    }
+
     #minimap-container {
       position: absolute; bottom: 20px; left: 20px;
       width: 125px; height: 125px; background: rgba(255, 255, 255, 0.85);
@@ -64,28 +70,22 @@
       opacity: 0; pointer-events: none; transition: opacity 0.1s ease-out;
     }
 
+    /* スタート画面 */
     #overlay {
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(245, 246, 250, 0.94); display: flex; flex-direction: column;
+      background: rgba(245, 246, 250, 0.96); display: flex; flex-direction: column;
       align-items: center; justify-content: center; color: #2d3436; z-index: 10;
     }
     #overlay h1 { font-size: 40px; margin-bottom: 10px; color: #0984e3; letter-spacing: 2px; }
     #overlay p { margin-bottom: 6px; font-size: 14px; color: #636e72; }
     .controls { margin-bottom: 24px; color: #2d3436; font-size: 13px; line-height: 1.6; text-align: center; }
     .btn {
-      padding: 12px 36px; font-size: 18px; background: #0984e3; color: #fff;
+      padding: 12px 40px; font-size: 18px; background: #0984e3; color: #fff;
       border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
       box-shadow: 0 4px 12px rgba(9, 132, 227, 0.3);
     }
     .btn:hover { background: #74b9ff; }
     #room-input { padding: 10px; font-size: 16px; border-radius: 6px; border: 2px solid #0984e3; margin-bottom: 16px; text-align: center; background: #fff; color: #2d3436; }
-
-    #pause-overlay {
-      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.4); display: none; align-items: center;
-      justify-content: center; color: #fff; z-index: 9; cursor: pointer;
-    }
-    #pause-overlay h2 { font-size: 28px; text-shadow: 0 2px 8px #000; }
   </style>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -102,6 +102,8 @@
       <div class="compass-pointer"></div>
       <div id="compass-tape"></div>
     </div>
+
+    <div id="click-to-focus">画面をクリックして視点操作を開始</div>
 
     <div id="minimap-container">
       <canvas id="minimap" width="125" height="125"></canvas>
@@ -129,12 +131,8 @@
     <button class="btn" id="start-btn">参戦する</button>
   </div>
 
-  <div id="pause-overlay">
-    <h2>クリックして戦闘を再開</h2>
-  </div>
-
   <script>
-    // --- 1. 昼間シーン & ライティング ---
+    // --- 1. 明るい昼間シーン ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x81ecec);
     scene.fog = new THREE.Fog(0x81ecec, 45, 110);
@@ -184,7 +182,7 @@
     grid.position.y = 0.02;
     scene.add(grid);
 
-    // 天井（高さ14m）
+    // 天井（14m）
     const ceiling = new THREE.Mesh(
       new THREE.PlaneGeometry(70, 70),
       new THREE.MeshStandardMaterial({ color: 0x74b9ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
@@ -196,24 +194,20 @@
 
     // 外壁
     addBox(0, 0, -35, 70, 14, 2, 0xb2bec3);
-    addBox(0, 0, 35, 70, 14, 2, 0xb2bec3);
+    addBox(0, 0, 35, 70, 8, 2, 0xb2bec3);
     addBox(-35, 0, 0, 2, 14, 70, 0xb2bec3);
     addBox(35, 0, 0, 2, 14, 70, 0xb2bec3);
 
-    // ★中央高台（3段目まで誰でも登れるステップを追加）
-    addBox(0, 0, 0, 16, 1.8, 16, 0x636e72);    // 1段目 (高さ1.8m)
-    addBox(0, 1.8, 0, 10, 1.8, 10, 0x74b9ff);  // 2段目 (高さ3.6m)
-    addBox(0, 3.6, 0, 5, 1.6, 5, 0x0984e3);     // 3段目 (高さ5.2m・最上段)
+    // 中央高台（1段目 1.8m、2段目 3.6m、3段目 5.2m）
+    addBox(0, 0, 0, 16, 1.8, 16, 0x636e72);
+    addBox(0, 1.8, 0, 10, 1.8, 10, 0x74b9ff);
+    addBox(0, 3.6, 0, 5, 1.6, 5, 0x0984e3);
 
-    // 1段目への踏み台
+    // 階段・ステップ
     addBox(0, 0, 10, 4, 0.9, 3, 0xb2bec3);
     addBox(0, 0, -10, 4, 0.9, 3, 0xb2bec3);
-
-    // 2段目への踏み台
     addBox(0, 1.8, 6, 3, 0.9, 2, 0xb2bec3);
     addBox(0, 1.8, -6, 3, 0.9, 2, 0xb2bec3);
-
-    // ★3段目へ楽々上がれる専用ステップ（段差解消）
     addBox(0, 3.6, 3.2, 2.4, 0.8, 1.4, 0xb2bec3);
     addBox(0, 3.6, -3.2, 2.4, 0.8, 1.4, 0xb2bec3);
 
@@ -275,7 +269,7 @@
     let myMp = 100;
     let isOverheated = false;
     let isGuarding = false;
-    let hasStartedGame = false;
+    let gameActive = false;
 
     const safeSpawns = [
       { x: 0, z: -28 }, { x: 0, z: 28 }, { x: -28, z: 0 }, { x: 28, z: 0 }
@@ -295,7 +289,6 @@
       document.getElementById('mp-label').style.color = '#2d3436';
       document.getElementById('info').innerText = '戦闘中';
 
-      // 相手に自分が復帰したことを通知
       if (conn && conn.open) conn.send({ type: 'respawned' });
     }
     resetSpawn();
@@ -382,22 +375,26 @@
       setTimeout(() => { overlay.style.opacity = '0'; }, 180);
     }
 
-    // --- 6. P2P通信 ---
+    // --- 6. P2P通信 (PeerJS) ---
     let peer = null, conn = null;
 
     function initNetwork(roomId) {
-      const hostId = `skyruins-fps-${roomId}-host`;
-      const guestId = `skyruins-fps-${roomId}-guest`;
+      try {
+        const hostId = `skyruins-${roomId}-host`;
+        const guestId = `skyruins-${roomId}-guest`;
 
-      peer = new Peer(hostId);
-      peer.on('open', () => { document.getElementById('info').innerText = '相手の参加を待機中...'; });
-      peer.on('connection', (c) => { conn = c; setupEvents(); });
-      peer.on('error', (err) => {
-        if (err.type === 'unavailable-id') {
-          peer = new Peer(guestId);
-          peer.on('open', () => { conn = peer.connect(hostId); setupEvents(); });
-        }
-      });
+        peer = new Peer(hostId);
+        peer.on('open', () => { document.getElementById('info').innerText = '相手の参加を待機中...'; });
+        peer.on('connection', (c) => { conn = c; setupEvents(); });
+        peer.on('error', (err) => {
+          if (err.type === 'unavailable-id') {
+            peer = new Peer(guestId);
+            peer.on('open', () => { conn = peer.connect(hostId); setupEvents(); });
+          }
+        });
+      } catch (e) {
+        console.warn('Network offline or error:', e);
+      }
     }
 
     function setupEvents() {
@@ -419,7 +416,7 @@
       });
     }
 
-    // --- 7. 操作入力 & ポーズ ---
+    // --- 7. 操作入力（絶対に止まらない堅牢な開始制御） ---
     let isLocked = false;
     let pitch = 0, yaw = 0;
     const keys = {};
@@ -429,26 +426,34 @@
     let lastShootTime = 0;
 
     const overlay = document.getElementById('overlay');
-    const pauseOverlay = document.getElementById('pause-overlay');
+    const clickPrompt = document.getElementById('click-to-focus');
 
+    // ★「参戦する」ボタンを押したら確実にゲームを開始
     document.getElementById('start-btn').addEventListener('click', () => {
       const room = document.getElementById('room-input').value.trim() || 'default';
       initNetwork(room);
-      hasStartedGame = true;
+      gameActive = true;
       overlay.style.display = 'none';
-      document.body.requestPointerLock();
+
+      // ポインターロック試行
+      try {
+        document.body.requestPointerLock();
+      } catch(e) { console.log(e); }
     });
 
-    pauseOverlay.addEventListener('click', () => {
-      document.body.requestPointerLock();
+    // 画面クリックでいつでもポインターロック再取得
+    window.addEventListener('click', (e) => {
+      if (gameActive && !isLocked && e.target.id !== 'start-btn') {
+        try {
+          document.body.requestPointerLock();
+        } catch(e) {}
+      }
     });
 
     document.addEventListener('pointerlockchange', () => {
       isLocked = document.pointerLockElement === document.body;
-      if (!isLocked && hasStartedGame) {
-        pauseOverlay.style.display = 'flex';
-      } else {
-        pauseOverlay.style.display = 'none';
+      if (gameActive) {
+        clickPrompt.style.display = isLocked ? 'none' : 'block';
       }
     });
 
@@ -460,7 +465,7 @@
 
     window.addEventListener('keydown', (e) => {
       keys[e.code] = true;
-      if (e.code === 'Space' && isGrounded && isLocked && myHp > 0) {
+      if (e.code === 'Space' && isGrounded && gameActive && myHp > 0) {
         velocityY = jumpStrength;
         isGrounded = false;
       }
@@ -468,7 +473,7 @@
     window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
     window.addEventListener('mousedown', (e) => {
-      if (!isLocked || myHp <= 0) return;
+      if (!gameActive || myHp <= 0) return;
 
       if (e.button === 0) {
         isMouseDown = true;
@@ -494,7 +499,7 @@
     });
 
     window.addEventListener('mouseup', (e) => {
-      if (!isLocked || myHp <= 0) return;
+      if (!gameActive || myHp <= 0) return;
       if (e.button === 0) isMouseDown = false;
       else if (e.button === 2) isRightDown = false;
     });
@@ -525,7 +530,7 @@
       mpLabel.style.color = '#d63031';
     }
 
-    // --- 8. コンパス（数学的にズレを完全補正） ＆ ミニマップ ---
+    // --- 8. コンパス ＆ ミニマップ ---
     const compassTape = document.getElementById('compass-tape');
     const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     let tapeHTML = '';
@@ -537,11 +542,9 @@
     compassTape.innerHTML = tapeHTML;
 
     function updateCompass() {
-      // yawから時計回り角度(0~360)を正しく算出
       let clockDeg = (-THREE.MathUtils.radToDeg(yaw)) % 360;
       if (clockDeg < 0) clockDeg += 360;
       const px = (clockDeg / 45) * 60;
-      // 2セット目の'N'の中心(510px)がコンテナ中心(120px)に合致するよう配置
       compassTape.style.transform = `translateX(${120 - 510 - px}px)`;
     }
 
@@ -595,7 +598,7 @@
       requestAnimationFrame(animate);
       const delta = Math.min(clock.getDelta(), 0.1);
 
-      if (isLocked && myHp > 0) {
+      if (gameActive && myHp > 0) {
         const isHoldingLeft = isMouseDown && (Date.now() - mouseDownTime >= 200);
         isGuarding = (isHoldingLeft || isRightDown) && !isOverheated && myMp > 0;
         myShield.visible = isGuarding;
@@ -643,11 +646,9 @@
           camera.position.z = resolved.z;
         }
 
-        // 垂直移動 & 天井頭打ち判定
         velocityY += gravity * delta;
         camera.position.y += velocityY * delta;
 
-        // 天井（14m）で頭をぶつけたら落下に切り替え
         if (camera.position.y >= 13.6) {
           camera.position.y = 13.6;
           if (velocityY > 0) velocityY = 0;
