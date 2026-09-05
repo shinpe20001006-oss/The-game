@@ -3,25 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Magic FPS Duel - Ruins Arena</title>
+  <title>3D Magic FPS Duel - Sky Ruins</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body { overflow: hidden; background: #0e1526; font-family: sans-serif; }
+    body { overflow: hidden; background: #81ecec; font-family: sans-serif; }
     #ui { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; }
     
     #crosshair {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: 16px; height: 16px; border: 2px solid rgba(0, 242, 254, 0.9);
+      width: 16px; height: 16px; border: 2px solid #0984e3;
       border-radius: 50%; pointer-events: none;
     }
     #crosshair::after {
       content: ''; position: absolute; top: 5px; left: 5px; width: 2px; height: 2px;
-      background: #fff; border-radius: 50%;
+      background: #d63031; border-radius: 50%;
+    }
+
+    /* 正確なコンパスHUD */
+    #compass-container {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      width: 240px; height: 32px; background: rgba(0, 0, 0, 0.55);
+      border: 1px solid #74b9ff; border-radius: 16px; overflow: hidden;
+    }
+    #compass-tape {
+      display: flex; position: absolute; font-weight: bold; font-size: 14px;
+      color: #fff; white-space: nowrap; height: 100%; align-items: center;
+      transition: transform 0.04s linear;
+    }
+    .compass-pointer {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0; border-left: 6px solid transparent;
+      border-right: 6px solid transparent; border-top: 7px solid #ff7675; z-index: 2;
     }
 
     #hud { position: absolute; bottom: 20px; left: 160px; color: #fff; }
-    .bar-label { font-size: 11px; font-weight: bold; margin-bottom: 2px; text-shadow: 1px 1px 2px #000; }
-    .bar-bg { width: 200px; height: 14px; background: rgba(0,0,0,0.6); border: 2px solid #666; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+    .bar-label { font-size: 11px; font-weight: bold; margin-bottom: 2px; text-shadow: 1px 1px 2px #000; color: #2d3436; }
+    .bar-bg { width: 200px; height: 14px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
     #hp-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ff6b81); transition: width 0.15s; }
     #mp-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #0984e3, #00cec9); transition: width 0.08s; }
     
@@ -29,17 +46,15 @@
       background: linear-gradient(90deg, #d63031, #e17055) !important;
       animation: blink 0.5s infinite alternate;
     }
-    @keyframes blink {
-      from { opacity: 0.4; }
-      to { opacity: 1; }
-    }
+    @keyframes blink { from { opacity: 0.4; } to { opacity: 1; } }
 
-    #info { margin-top: 4px; font-size: 13px; font-weight: bold; color: #55e6c1; text-shadow: 0 0 4px #000; }
+    #info { margin-top: 4px; font-size: 13px; font-weight: bold; color: #2d3436; text-shadow: 0 0 4px #fff; }
 
     #minimap-container {
       position: absolute; bottom: 20px; left: 20px;
-      width: 125px; height: 125px; background: rgba(14, 21, 38, 0.85);
-      border: 2px solid #00cec9; border-radius: 6px; overflow: hidden;
+      width: 125px; height: 125px; background: rgba(255, 255, 255, 0.85);
+      border: 2px solid #0984e3; border-radius: 6px; overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     }
     #minimap { width: 100%; height: 100%; }
 
@@ -51,19 +66,26 @@
 
     #overlay {
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(10, 15, 29, 0.85); display: flex; flex-direction: column;
-      align-items: center; justify-content: center; color: #fff; z-index: 10;
+      background: rgba(245, 246, 250, 0.94); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; color: #2d3436; z-index: 10;
     }
-    #overlay h1 { font-size: 40px; margin-bottom: 12px; color: #00d2d3; text-shadow: 0 0 25px #00d2d3; letter-spacing: 3px; }
-    #overlay p { margin-bottom: 6px; font-size: 14px; color: #ccc; }
-    .controls { margin-bottom: 24px; color: #aaa; font-size: 13px; line-height: 1.6; text-align: center; }
+    #overlay h1 { font-size: 40px; margin-bottom: 10px; color: #0984e3; letter-spacing: 2px; }
+    #overlay p { margin-bottom: 6px; font-size: 14px; color: #636e72; }
+    .controls { margin-bottom: 24px; color: #2d3436; font-size: 13px; line-height: 1.6; text-align: center; }
     .btn {
-      padding: 12px 32px; font-size: 18px; background: #10ac84; color: #fff;
+      padding: 12px 36px; font-size: 18px; background: #0984e3; color: #fff;
       border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
-      box-shadow: 0 0 15px rgba(16, 172, 132, 0.4);
+      box-shadow: 0 4px 12px rgba(9, 132, 227, 0.3);
     }
-    .btn:hover { background: #1dd1a1; }
-    #room-input { padding: 10px; font-size: 16px; border-radius: 6px; border: 2px solid #10ac84; margin-bottom: 16px; text-align: center; background: #222; color: #fff; }
+    .btn:hover { background: #74b9ff; }
+    #room-input { padding: 10px; font-size: 16px; border-radius: 6px; border: 2px solid #0984e3; margin-bottom: 16px; text-align: center; background: #fff; color: #2d3436; }
+
+    #pause-overlay {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.4); display: none; align-items: center;
+      justify-content: center; color: #fff; z-index: 9; cursor: pointer;
+    }
+    #pause-overlay h2 { font-size: 28px; text-shadow: 0 2px 8px #000; }
   </style>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -75,6 +97,11 @@
 
   <div id="ui">
     <div id="crosshair"></div>
+
+    <div id="compass-container">
+      <div class="compass-pointer"></div>
+      <div id="compass-tape"></div>
+    </div>
 
     <div id="minimap-container">
       <canvas id="minimap" width="125" height="125"></canvas>
@@ -90,56 +117,48 @@
   </div>
 
   <div id="overlay">
-    <h1>RUINS OF MAGIC</h1>
+    <h1>SKY RUINS DUEL</h1>
     <p>3D 一人称 魔法決闘アリーナ</p>
     <p class="controls">
       【WASD】移動　【SPACE】ジャンプ　【マウス】照準<br>
-      【左クリック】魔法弾発射（MP 25消費）<br>
+      【左クリック】魔法弾発射（MP 25消費 / 12〜24でも全MP消費して発射可！）<br>
       【長押し or 右クリック】ガード展開（維持毎秒15MP・被弾時MP-30）<br>
-      <span style="color:#ff7675;">※MP枯渇時はフルチャージされるまで行動不能！</span>
+      <span style="color:#d63031;">※MP枯渇時はフルチャージまで一切の行動不可</span>
     </p>
     <input type="text" id="room-input" placeholder="合言葉（ルーム名）" value="arena888">
     <button class="btn" id="start-btn">参戦する</button>
   </div>
 
+  <div id="pause-overlay">
+    <h2>クリックして戦闘を再開</h2>
+  </div>
+
   <script>
-    // --- 1. 明るいシーン & ライティング ---
+    // --- 1. 昼間シーン & ライティング ---
     const scene = new THREE.Scene();
-    // フォグを薄く、見通しを改善
-    scene.fog = new THREE.FogExp2(0x192a56, 0.008);
+    scene.background = new THREE.Color(0x81ecec);
+    scene.fog = new THREE.Fog(0x81ecec, 45, 110);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
-    renderer.setClearColor(0x192a56);
     document.body.appendChild(renderer.domElement);
 
-    // 明るいアンビエントライト
-    const ambientLight = new THREE.AmbientLight(0x8c9eff, 1.8);
-    scene.add(ambientLight);
-
-    // 主光源（月光・太陽光）
-    const sunLight = new THREE.DirectionalLight(0xffffff, 1.6);
-    sunLight.position.set(40, 70, 30);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+    const sunLight = new THREE.DirectionalLight(0xfffae6, 1.2);
+    sunLight.position.set(40, 80, 40);
     sunLight.castShadow = true;
     scene.add(sunLight);
 
-    // 方角把握用の巨大な光る月（北側: Z = -180 の空に配置）
-    const moonGeo = new THREE.SphereGeometry(14, 32, 32);
-    const moonMat = new THREE.MeshBasicMaterial({ color: 0x00f2fe });
-    const moon = new THREE.Mesh(moonGeo, moonMat);
-    moon.position.set(0, 45, -180);
-    scene.add(moon);
-
-    // --- 2. 遺跡ステージ生成 & コリジョン ---
+    // --- 2. 遺跡ステージ & 天井 & 登りやすい中央高台 ---
     const colliders = [];
     const mapObstacles = [];
 
-    function addBox(x, y, z, w, h, d, color = 0x404b69) {
+    function addBox(x, y, z, w, h, d, color = 0xdfe6e9) {
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(w, h, d),
-        new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1 })
+        new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.1 })
       );
       mesh.position.set(x, y + h / 2, z);
       mesh.castShadow = true;
@@ -152,35 +171,51 @@
       return mesh;
     }
 
-    // 床（明るいグリッド調）
-    const floorGeo = new THREE.PlaneGeometry(70, 70);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x273c75, roughness: 0.8 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
+    // 床
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 70),
+      new THREE.MeshStandardMaterial({ color: 0xf5f6fa, roughness: 0.6 })
+    );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // グリッドヘルパーで足元の移動方向を分かりやすく
-    const grid = new THREE.GridHelper(70, 35, 0x00d2d3, 0x3867d6);
+    const grid = new THREE.GridHelper(70, 35, 0x0984e3, 0xb2bec3);
     grid.position.y = 0.02;
     scene.add(grid);
 
+    // 天井（高さ14m）
+    const ceiling = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 70),
+      new THREE.MeshStandardMaterial({ color: 0x74b9ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+    );
+    ceiling.position.y = 14;
+    ceiling.rotation.x = Math.PI / 2;
+    scene.add(ceiling);
+    colliders.push(new THREE.Box3(new THREE.Vector3(-35, 14, -35), new THREE.Vector3(35, 16, 35)));
+
     // 外壁
-    addBox(0, 0, -35, 70, 8, 2, 0x2f3640);
-    addBox(0, 0, 35, 70, 8, 2, 0x2f3640);
-    addBox(-35, 0, 0, 2, 8, 70, 0x2f3640);
-    addBox(35, 0, 0, 2, 8, 70, 0x2f3640);
+    addBox(0, 0, -35, 70, 14, 2, 0xb2bec3);
+    addBox(0, 0, 35, 70, 14, 2, 0xb2bec3);
+    addBox(-35, 0, 0, 2, 14, 70, 0xb2bec3);
+    addBox(35, 0, 0, 2, 14, 70, 0xb2bec3);
 
-    // 中央の高台テラス（2段）
-    addBox(0, 0, 0, 14, 2.5, 14, 0x485460);
-    addBox(0, 2.5, 0, 8, 2.5, 8, 0x57606f);
-    addBox(0, 5.0, 0, 2, 4.0, 2, 0x00d2d3);
+    // ★中央高台（3段目まで誰でも登れるステップを追加）
+    addBox(0, 0, 0, 16, 1.8, 16, 0x636e72);    // 1段目 (高さ1.8m)
+    addBox(0, 1.8, 0, 10, 1.8, 10, 0x74b9ff);  // 2段目 (高さ3.6m)
+    addBox(0, 3.6, 0, 5, 1.6, 5, 0x0984e3);     // 3段目 (高さ5.2m・最上段)
 
-    // 登り台座ブロック
-    addBox(0, 0, 9, 4, 1.25, 4, 0x485460);
-    addBox(0, 0, -9, 4, 1.25, 4, 0x485460);
-    addBox(9, 0, 0, 4, 1.25, 4, 0x485460);
-    addBox(-9, 0, 0, 4, 1.25, 4, 0x485460);
+    // 1段目への踏み台
+    addBox(0, 0, 10, 4, 0.9, 3, 0xb2bec3);
+    addBox(0, 0, -10, 4, 0.9, 3, 0xb2bec3);
+
+    // 2段目への踏み台
+    addBox(0, 1.8, 6, 3, 0.9, 2, 0xb2bec3);
+    addBox(0, 1.8, -6, 3, 0.9, 2, 0xb2bec3);
+
+    // ★3段目へ楽々上がれる専用ステップ（段差解消）
+    addBox(0, 3.6, 3.2, 2.4, 0.8, 1.4, 0xb2bec3);
+    addBox(0, 3.6, -3.2, 2.4, 0.8, 1.4, 0xb2bec3);
 
     // 迷路壁
     const mazeWalls = [
@@ -188,11 +223,11 @@
       [-22, 0, 2, 16], [22, 0, 2, 16],
       [-8, -24, 2, 10], [8, -24, 2, 10], [-8, 24, 2, 10], [8, 24, 2, 10]
     ];
-    mazeWalls.forEach(([x, z, w, d]) => addBox(x, 0, z, w, 4.5, d, 0x3d3d3d));
+    mazeWalls.forEach(([x, z, w, d]) => addBox(x, 0, z, w, 4.5, d, 0xdfe6e9));
 
     // 石柱
     const pillarGeo = new THREE.CylinderGeometry(1.2, 1.4, 7, 16);
-    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x718093, roughness: 0.5 });
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0xa4b0be, roughness: 0.5 });
     const pillarPos = [[-12, -8], [12, -8], [-12, 8], [12, 8], [-25, -25], [25, 25], [-25, 25], [25, -25]];
     pillarPos.forEach(([x, z]) => {
       const p = new THREE.Mesh(pillarGeo, pillarMat);
@@ -203,34 +238,33 @@
       mapObstacles.push({ x, z, w: 2.8, d: 2.8 });
     });
 
-    // --- 3. 自機 & 敵プレイヤーのシールドメッシュ ---
+    // --- 3. 自機 & 敵シールド ---
     function createShieldMesh(colorHex = 0x00d2d3) {
-      const shieldGeo = new THREE.CircleGeometry(1.0, 6);
-      const shieldMat = new THREE.MeshBasicMaterial({
-        color: colorHex, transparent: true, opacity: 0.5, side: THREE.DoubleSide
-      });
-      const shield = new THREE.Mesh(shieldGeo, shieldMat);
+      const shield = new THREE.Mesh(
+        new THREE.CircleGeometry(1.0, 6),
+        new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+      );
       shield.visible = false;
       return shield;
     }
 
-    const myShield = createShieldMesh(0x00d2d3);
+    const myShield = createShieldMesh(0x0984e3);
     myShield.position.set(0, 0, -1.2);
     camera.add(myShield);
     scene.add(camera);
 
     const enemyMesh = new THREE.Group();
-    const enemyBody = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.7, 16), new THREE.MeshStandardMaterial({ color: 0xff3838 }));
+    const enemyBody = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.7, 16), new THREE.MeshStandardMaterial({ color: 0xff4757 }));
     enemyBody.position.y = 0.85;
     const enemyHead = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff6b81 }));
     enemyHead.position.y = 1.8;
-    const enemyShield = createShieldMesh(0xff3838);
+    const enemyShield = createShieldMesh(0xff4757);
     enemyShield.position.set(0, 1.2, -0.8);
     enemyMesh.add(enemyBody, enemyHead, enemyShield);
     enemyMesh.visible = false;
     scene.add(enemyMesh);
 
-    // --- 4. プレイヤー物理 & 安全なスポーン ---
+    // --- 4. プレイヤー物理 & スポーン ---
     const playerRadius = 0.45;
     const eyeHeight = 1.7;
     let velocityY = 0;
@@ -241,12 +275,10 @@
     let myMp = 100;
     let isOverheated = false;
     let isGuarding = false;
+    let hasStartedGame = false;
 
     const safeSpawns = [
-      { x: 0, z: -28 },
-      { x: 0, z: 28 },
-      { x: -28, z: 0 },
-      { x: 28, z: 0 }
+      { x: 0, z: -28 }, { x: 0, z: 28 }, { x: -28, z: 0 }, { x: 28, z: 0 }
     ];
 
     function resetSpawn() {
@@ -260,7 +292,11 @@
       document.getElementById('mp-bar').style.width = '100%';
       document.getElementById('mp-bar').classList.remove('overheat');
       document.getElementById('mp-label').innerText = 'MP (MANA)';
-      document.getElementById('mp-label').style.color = '#fff';
+      document.getElementById('mp-label').style.color = '#2d3436';
+      document.getElementById('info').innerText = '戦闘中';
+
+      // 相手に自分が復帰したことを通知
+      if (conn && conn.open) conn.send({ type: 'respawned' });
     }
     resetSpawn();
 
@@ -287,18 +323,16 @@
           break;
         }
       }
-
       return { x: finalX, z: finalZ };
     }
 
     function checkGround(py) {
       let groundLevel = 0;
       const pFoot = py - eyeHeight;
-
       for (let box of colliders) {
         if (camera.position.x >= box.min.x - playerRadius && camera.position.x <= box.max.x + playerRadius &&
             camera.position.z >= box.min.z - playerRadius && camera.position.z <= box.max.z + playerRadius) {
-          if (box.max.y <= pFoot + 0.35 && box.max.y > groundLevel) {
+          if (box.max.y <= pFoot + 0.4 && box.max.y > groundLevel) {
             groundLevel = box.max.y;
           }
         }
@@ -306,11 +340,11 @@
       return groundLevel + eyeHeight;
     }
 
-    // --- 5. 魔法弾 & 爆発 ---
+    // --- 5. 魔法弾 & エフェクト ---
     const spells = [];
     const particles = [];
 
-    function createExplosion(pos, colorHex = 0x00f2fe) {
+    function createExplosion(pos, colorHex = 0x0984e3) {
       const pLight = new THREE.PointLight(colorHex, 5, 8);
       pLight.position.copy(pos);
       scene.add(pLight);
@@ -319,7 +353,6 @@
       const count = 22;
       const pGeo = new THREE.SphereGeometry(0.12, 6, 6);
       const pMat = new THREE.MeshBasicMaterial({ color: colorHex });
-
       for (let i = 0; i < count; i++) {
         const pMesh = new THREE.Mesh(pGeo, pMat);
         pMesh.position.copy(pos);
@@ -330,7 +363,7 @@
     }
 
     function spawnSpell(x, y, z, vx, vy, vz, isMine) {
-      const color = isMine ? 0x00f2fe : 0xff4757;
+      const color = isMine ? 0x0984e3 : 0xff4757;
       const spellGroup = new THREE.Group();
       const core = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
       const glow = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 10), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 }));
@@ -349,12 +382,12 @@
       setTimeout(() => { overlay.style.opacity = '0'; }, 180);
     }
 
-    // --- 6. P2P通信 (PeerJS) ---
+    // --- 6. P2P通信 ---
     let peer = null, conn = null;
 
     function initNetwork(roomId) {
-      const hostId = `ruins-fps-${roomId}-host`;
-      const guestId = `ruins-fps-${roomId}-guest`;
+      const hostId = `skyruins-fps-${roomId}-host`;
+      const guestId = `skyruins-fps-${roomId}-guest`;
 
       peer = new Peer(hostId);
       peer.on('open', () => { document.getElementById('info').innerText = '相手の参加を待機中...'; });
@@ -380,11 +413,13 @@
           spawnSpell(data.x, data.y, data.z, data.vx, data.vy, data.vz, false);
         } else if (data.type === 'enemyKilled') {
           document.getElementById('info').innerText = '相手を撃破しました！';
+        } else if (data.type === 'respawned') {
+          document.getElementById('info').innerText = '戦闘中';
         }
       });
     }
 
-    // --- 7. 操作入力（押した瞬間発射 ＆ 長押しガード） ---
+    // --- 7. 操作入力 & ポーズ ---
     let isLocked = false;
     let pitch = 0, yaw = 0;
     const keys = {};
@@ -393,16 +428,28 @@
     let isRightDown = false;
     let lastShootTime = 0;
 
+    const overlay = document.getElementById('overlay');
+    const pauseOverlay = document.getElementById('pause-overlay');
+
     document.getElementById('start-btn').addEventListener('click', () => {
       const room = document.getElementById('room-input').value.trim() || 'default';
       initNetwork(room);
-      document.getElementById('overlay').style.display = 'none';
+      hasStartedGame = true;
+      overlay.style.display = 'none';
+      document.body.requestPointerLock();
+    });
+
+    pauseOverlay.addEventListener('click', () => {
       document.body.requestPointerLock();
     });
 
     document.addEventListener('pointerlockchange', () => {
       isLocked = document.pointerLockElement === document.body;
-      if (!isLocked && myHp > 0) document.getElementById('overlay').style.display = 'flex';
+      if (!isLocked && hasStartedGame) {
+        pauseOverlay.style.display = 'flex';
+      } else {
+        pauseOverlay.style.display = 'none';
+      }
     });
 
     document.addEventListener('mousemove', (e) => {
@@ -420,45 +467,41 @@
     });
     window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-    // ★押した瞬間に即発射＆長押しガードへのスムーズな移行
     window.addEventListener('mousedown', (e) => {
       if (!isLocked || myHp <= 0) return;
 
-      if (e.button === 0) { // 左クリック
+      if (e.button === 0) {
         isMouseDown = true;
         mouseDownTime = Date.now();
 
-        // 押した瞬間に弾を撃つ（連打時の発射抜け解消）
         const now = Date.now();
-        if (now - lastShootTime >= 180) { // クールダウン180ms
-          if (!isOverheated && myMp >= 25) {
+        if (now - lastShootTime >= 180 && !isOverheated) {
+          if (myMp >= 25) {
+            myMp -= 25;
             fireSpell();
             lastShootTime = now;
+            if (myMp <= 0.01) { myMp = 0; triggerOverheat(); }
+          } else if (myMp >= 12) {
+            myMp = 0;
+            fireSpell();
+            lastShootTime = now;
+            triggerOverheat();
           }
         }
-      } else if (e.button === 2) { // 右クリック
+      } else if (e.button === 2) {
         isRightDown = true;
       }
     });
 
     window.addEventListener('mouseup', (e) => {
       if (!isLocked || myHp <= 0) return;
-      if (e.button === 0) {
-        isMouseDown = false;
-      } else if (e.button === 2) {
-        isRightDown = false;
-      }
+      if (e.button === 0) isMouseDown = false;
+      else if (e.button === 2) isRightDown = false;
     });
 
     window.addEventListener('contextmenu', (e) => e.preventDefault());
 
     function fireSpell() {
-      myMp -= 25;
-      if (myMp <= 0) {
-        myMp = 0;
-        triggerOverheat();
-      }
-
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       const sx = camera.position.x + dir.x * 0.6;
@@ -479,44 +522,65 @@
       mpBar.classList.add('overheat');
       const mpLabel = document.getElementById('mp-label');
       mpLabel.innerText = 'OVERHEAT! (フル回復まで行動不能)';
-      mpLabel.style.color = '#ff7675';
+      mpLabel.style.color = '#d63031';
     }
 
-    // --- 8. ミニマップ描画 ---
+    // --- 8. コンパス（数学的にズレを完全補正） ＆ ミニマップ ---
+    const compassTape = document.getElementById('compass-tape');
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    let tapeHTML = '';
+    for (let r = 0; r < 3; r++) {
+      directions.forEach(d => {
+        tapeHTML += `<span style="display:inline-block; width:60px; text-align:center;">${d}</span>`;
+      });
+    }
+    compassTape.innerHTML = tapeHTML;
+
+    function updateCompass() {
+      // yawから時計回り角度(0~360)を正しく算出
+      let clockDeg = (-THREE.MathUtils.radToDeg(yaw)) % 360;
+      if (clockDeg < 0) clockDeg += 360;
+      const px = (clockDeg / 45) * 60;
+      // 2セット目の'N'の中心(510px)がコンテナ中心(120px)に合致するよう配置
+      compassTape.style.transform = `translateX(${120 - 510 - px}px)`;
+    }
+
     const mapCanvas = document.getElementById('minimap');
     const mapCtx = mapCanvas.getContext('2d');
     const mapScale = 125 / 70;
 
     function renderMinimap() {
-      mapCtx.fillStyle = 'rgba(25, 42, 86, 0.9)';
+      mapCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       mapCtx.fillRect(0, 0, 125, 125);
 
-      mapCtx.fillStyle = '#718093';
+      mapCtx.fillStyle = '#0984e3';
+      mapCtx.font = 'bold 10px sans-serif';
+      mapCtx.fillText('N', 58, 12);
+
+      mapCtx.fillStyle = '#b2bec3';
       mapObstacles.forEach(o => {
         const mx = (o.x + 35) * mapScale - (o.w * mapScale) / 2;
         const mz = (o.z + 35) * mapScale - (o.d * mapScale) / 2;
         mapCtx.fillRect(mx, mz, o.w * mapScale, o.d * mapScale);
       });
 
-      // 敵位置（赤点）
       if (enemyMesh.visible) {
         const ex = (enemyMesh.position.x + 35) * mapScale;
         const ez = (enemyMesh.position.z + 35) * mapScale;
         mapCtx.fillStyle = '#ff4757';
         mapCtx.beginPath();
-        mapCtx.arc(ex, ez, 3.5, 0, Math.PI * 2);
+        mapCtx.arc(ex, ez, 4, 0, Math.PI * 2);
         mapCtx.fill();
       }
 
-      // 自分（水色の点＋視線線）
       const px = (camera.position.x + 35) * mapScale;
       const pz = (camera.position.z + 35) * mapScale;
-      mapCtx.fillStyle = '#00d2d3';
+      mapCtx.fillStyle = '#0984e3';
       mapCtx.beginPath();
-      mapCtx.arc(px, pz, 4, 0, Math.PI * 2);
+      mapCtx.arc(px, pz, 4.5, 0, Math.PI * 2);
       mapCtx.fill();
 
-      mapCtx.strokeStyle = '#fff';
+      mapCtx.strokeStyle = '#2d3436';
       mapCtx.lineWidth = 2;
       mapCtx.beginPath();
       mapCtx.moveTo(px, pz);
@@ -532,29 +596,24 @@
       const delta = Math.min(clock.getDelta(), 0.1);
 
       if (isLocked && myHp > 0) {
-        // ガード判定（左長押し200ms以上 または 右長押し）
         const isHoldingLeft = isMouseDown && (Date.now() - mouseDownTime >= 200);
         isGuarding = (isHoldingLeft || isRightDown) && !isOverheated && myMp > 0;
         myShield.visible = isGuarding;
 
-        // MP増減処理
         if (isGuarding) {
-          // ★ご指定通りガード維持コストを毎秒15MPに変更
           myMp = Math.max(0, myMp - 15 * delta);
-          if (myMp <= 0) triggerOverheat();
+          if (myMp <= 0.01) { myMp = 0; triggerOverheat(); }
         } else {
-          // 自然回復（毎秒10）
           myMp = Math.min(100, myMp + 10 * delta);
           if (isOverheated && myMp >= 100) {
             isOverheated = false;
             document.getElementById('mp-bar').classList.remove('overheat');
             document.getElementById('mp-label').innerText = 'MP (MANA)';
-            document.getElementById('mp-label').style.color = '#fff';
+            document.getElementById('mp-label').style.color = '#2d3436';
           }
         }
         document.getElementById('mp-bar').style.width = `${myMp}%`;
 
-        // 視点 & 揺れ
         camera.rotation.order = 'YXZ';
         let shakeX = 0, shakeY = 0;
         if (shakeIntensity > 0) {
@@ -565,7 +624,6 @@
         camera.rotation.y = yaw + shakeX;
         camera.rotation.x = pitch + shakeY;
 
-        // 移動
         const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
         const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
         const moveVec = new THREE.Vector3();
@@ -585,9 +643,16 @@
           camera.position.z = resolved.z;
         }
 
-        // 垂直移動 & 接地
+        // 垂直移動 & 天井頭打ち判定
         velocityY += gravity * delta;
         camera.position.y += velocityY * delta;
+
+        // 天井（14m）で頭をぶつけたら落下に切り替え
+        if (camera.position.y >= 13.6) {
+          camera.position.y = 13.6;
+          if (velocityY > 0) velocityY = 0;
+        }
+
         const targetFloorY = checkGround(camera.position.y);
         if (camera.position.y <= targetFloorY) {
           camera.position.y = targetFloorY;
@@ -597,7 +662,6 @@
           isGrounded = false;
         }
 
-        // 相手に同期送信
         if (conn && conn.open) {
           conn.send({
             type: 'move',
@@ -609,10 +673,10 @@
           });
         }
 
+        updateCompass();
         renderMinimap();
       }
 
-      // パーティクル更新
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.life -= delta;
@@ -624,7 +688,6 @@
         }
       }
 
-      // 魔法弾更新 ＆ 衝突判定
       const spellSphere = new THREE.Sphere(new THREE.Vector3(), 0.35);
       for (let i = spells.length - 1; i >= 0; i--) {
         const s = spells[i];
@@ -636,21 +699,18 @@
 
         let collided = false;
 
-        // 1. 壁や柱との当たり判定
         for (let box of colliders) {
           if (box.intersectsSphere(spellSphere)) { collided = true; break; }
         }
-        if (s.group.position.y <= 0.2) collided = true;
+        if (s.group.position.y <= 0.2 || s.group.position.y >= 13.8) collided = true;
 
-        // ★2. 自分の弾が敵モデルに当たったか判定（貫通バグ解消）
         if (s.isMine && enemyMesh.visible) {
           const enemyCenter = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
           if (s.group.position.distanceTo(enemyCenter) < 1.25) {
-            collided = true; // 敵に着弾して消滅
+            collided = true;
           }
         }
 
-        // 3. 相手の弾が自分に直撃（被弾判定）
         if (!s.isMine && myHp > 0) {
           if (camera.position.distanceTo(s.group.position) < 1.3) {
             collided = true;
@@ -663,7 +723,7 @@
               if (camDir.dot(bDir) < -0.3) {
                 damage = 6;
                 myMp = Math.max(0, myMp - 30);
-                if (myMp <= 0) triggerOverheat();
+                if (myMp <= 0.01) { myMp = 0; triggerOverheat(); }
                 createExplosion(myShield.getWorldPosition(new THREE.Vector3()), 0x00cec9);
               }
             }
@@ -675,10 +735,7 @@
             if (myHp <= 0) {
               document.getElementById('info').innerText = '撃破されました！リスポーン中...';
               if (conn && conn.open) conn.send({ type: 'enemyKilled' });
-              setTimeout(() => {
-                resetSpawn();
-                document.getElementById('info').innerText = '戦闘中';
-              }, 3000);
+              setTimeout(() => { resetSpawn(); }, 3000);
             }
           }
         }
