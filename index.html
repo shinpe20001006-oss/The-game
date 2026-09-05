@@ -6,7 +6,7 @@
   <title>3D Magic FPS Duel - Bright Temple</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body { overflow: hidden; background: #68a0d4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { overflow: hidden; background: #5c93c4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     #ui { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; }
     
     /* 上部コンパスHUD */
@@ -50,6 +50,11 @@
       box-shadow: 0 0 12px #f39c12;
       animation: blink 0.4s infinite alternate;
     }
+    .ult-expiring {
+      background: linear-gradient(90deg, #e74c3c, #c0392b) !important;
+      box-shadow: 0 0 14px #e74c3c;
+      animation: blink 0.2s infinite alternate;
+    }
     @keyframes blink { from { opacity: 0.4; } to { opacity: 1; } }
 
     #info { margin-top: 4px; font-size: 13px; font-weight: bold; color: #fff; }
@@ -68,6 +73,20 @@
       opacity: 0; pointer-events: none; transition: opacity 0.1s ease-out;
     }
 
+    #invincible-overlay {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      border: 8px solid rgba(241, 196, 15, 0.65); box-shadow: inset 0 0 35px rgba(241, 196, 15, 0.55);
+      pointer-events: none; opacity: 0; transition: opacity 0.3s;
+    }
+
+    #death-overlay {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(8, 12, 18, 0.88); display: none; flex-direction: column;
+      align-items: center; justify-content: center; color: #ff4757; z-index: 25;
+    }
+    #death-overlay h2 { font-size: 38px; margin-bottom: 8px; text-shadow: 0 0 16px #ff4757; letter-spacing: 2px; }
+    #death-overlay p { font-size: 18px; color: #dfe6e9; font-weight: bold; }
+
     /* 参戦前設定オーバーレイ */
     #overlay {
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -75,37 +94,37 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       color: #fff; z-index: 30; overflow-y: auto; padding: 20px;
     }
-    #overlay h1 { font-size: 38px; color: #00cec9; text-shadow: 0 0 20px #00cec9; letter-spacing: 3px; margin-bottom: 4px; }
-    #overlay .subtitle { font-size: 14px; color: #b2bec3; margin-bottom: 16px; }
+    #overlay h1 { font-size: 36px; color: #00cec9; text-shadow: 0 0 20px #00cec9; letter-spacing: 3px; margin-bottom: 4px; }
+    #overlay .subtitle { font-size: 14px; color: #b2bec3; margin-bottom: 12px; }
 
-    .input-row { display: flex; gap: 12px; margin-bottom: 16px; width: 100%; max-width: 600px; }
+    .input-row { display: flex; gap: 12px; margin-bottom: 12px; width: 100%; max-width: 720px; }
     .input-group { flex: 1; display: flex; flex-direction: column; text-align: left; }
     .input-group label { font-size: 12px; font-weight: bold; margin-bottom: 4px; color: #81ecec; }
     .input-group input {
-      padding: 10px; font-size: 15px; border-radius: 6px; border: 2px solid #00cec9;
+      padding: 9px; font-size: 15px; border-radius: 6px; border: 2px solid #00cec9;
       background: #1e272e; color: #fff; outline: none; font-weight: bold;
     }
     .input-group input:focus { border-color: #81ecec; box-shadow: 0 0 8px #00cec9; }
 
-    .section-title { font-size: 14px; font-weight: bold; color: #ffeaa7; margin-bottom: 8px; text-align: left; width: 100%; max-width: 600px; }
+    .section-title { font-size: 14px; font-weight: bold; color: #ffeaa7; margin-bottom: 8px; text-align: left; width: 100%; max-width: 720px; }
     .char-grid {
-      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
-      width: 100%; max-width: 600px; margin-bottom: 20px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      width: 100%; max-width: 720px; margin-bottom: 16px;
     }
     .char-card {
       background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15);
-      border-radius: 8px; padding: 12px; text-align: left; cursor: pointer; transition: all 0.2s;
+      border-radius: 8px; padding: 10px; text-align: left; cursor: pointer; transition: all 0.2s;
     }
     .char-card:hover { background: rgba(0, 206, 201, 0.15); border-color: #00cec9; transform: translateY(-2px); }
     .char-card.selected {
       background: rgba(0, 206, 201, 0.25); border-color: #00cec9;
       box-shadow: 0 0 12px rgba(0, 206, 201, 0.6);
     }
-    .char-card .name { font-size: 15px; font-weight: bold; color: #00cec9; margin-bottom: 4px; display: flex; justify-content: space-between; }
-    .char-card .cost { font-size: 11px; background: #e17055; color: #fff; padding: 2px 6px; border-radius: 10px; }
-    .char-card .desc { font-size: 11px; color: #dfe6e9; line-height: 1.4; }
+    .char-card .name { font-size: 14px; font-weight: bold; color: #00cec9; margin-bottom: 4px; display: flex; justify-content: space-between; }
+    .char-card .cost { font-size: 10px; background: #e17055; color: #fff; padding: 2px 5px; border-radius: 10px; }
+    .char-card .desc { font-size: 11px; color: #dfe6e9; line-height: 1.35; }
 
-    .controls-hint { font-size: 12px; color: #a4b0be; margin-bottom: 16px; text-align: center; line-height: 1.5; }
+    .controls-hint { font-size: 11px; color: #a4b0be; margin-bottom: 14px; text-align: center; line-height: 1.5; }
     .btn {
       padding: 12px 48px; font-size: 18px; background: #00cec9; color: #111;
       border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
@@ -113,7 +132,6 @@
     }
     .btn:hover { background: #81ecec; transform: scale(1.03); }
 
-    /* 再開オーバーレイ */
     #resume-overlay {
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
       background: rgba(0, 0, 0, 0.4); display: none; align-items: center;
@@ -131,6 +149,12 @@
 <body>
 
   <div id="damage-overlay"></div>
+  <div id="invincible-overlay"></div>
+
+  <div id="death-overlay">
+    <h2>YOU WERE DEFEATED</h2>
+    <p id="death-countdown">リスポーンまで 3 秒</p>
+  </div>
 
   <div id="ui">
     <div id="compass-container">
@@ -159,7 +183,7 @@
     </div>
   </div>
 
-  <!-- 開始前設定画面 -->
+  <!-- 開始前設定画面 (全6スタイル選択) -->
   <div id="overlay">
     <h1>TEMPLE OF MAGIC</h1>
     <div class="subtitle">3D 一人称 魔法決闘アリーナ</div>
@@ -175,29 +199,37 @@
       </div>
     </div>
 
-    <div class="section-title">必殺技スタイル（キャラタイプ）を選択</div>
+    <div class="section-title">必殺技スタイルを選択</div>
     <div class="char-grid">
       <div class="char-card selected" data-ult="beam">
-        <div class="name">① メガビーム <span class="cost">命中 6回で溜まる</span></div>
-        <div class="desc">1秒の溜め後、5秒間極太貫通ビームを放射。視点固定＆低速化。0.2秒毎に2ダメ(壁貫通後は1ダメ)。</div>
+        <div class="name">① メガビーム <span class="cost">命中 6回</span></div>
+        <div class="desc">1秒溜め後5秒間三人称で極太ビーム！0.2秒毎に4ダメ(貫通後2)。シールド完全貫通！</div>
       </div>
       <div class="char-card" data-ult="shield">
-        <div class="name">② フルシールド <span class="cost">命中 4回で溜まる</span></div>
-        <div class="desc">8秒間全方位に球状シールドを展開し被弾を防御！移動速度とジャンプ力は低下しない。</div>
+        <div class="name">② フルシールド <span class="cost">命中 4回</span></div>
+        <div class="desc">8秒間全方位にシールド展開！被ダメ60%軽減。速度・跳躍は低下しない。</div>
       </div>
       <div class="char-card" data-ult="curse">
-        <div class="name">③ カースショック <span class="cost">命中 5回で溜まる</span></div>
-        <div class="desc">半径15mの巨大衝撃波球を展開。当たった敵のMPを0(即オーバーヒート)にし、10秒間移動・跳躍を激減！</div>
+        <div class="name">③ カースショック <span class="cost">命中 5回</span></div>
+        <div class="desc">半径15mの球状衝撃波。敵のMPを0(即オーバーヒート)にし10秒間移動・跳躍を激減！</div>
       </div>
       <div class="char-card" data-ult="super">
-        <div class="name">④ スーパーマジック <span class="cost">命中 6回で溜まる</span></div>
+        <div class="name">④ スーパーマジック <span class="cost">命中 6回</span></div>
         <div class="desc">MP全回復＋10秒間MP消費ゼロ＋移動速度1.5倍！オーバーヒートも即時解除。</div>
+      </div>
+      <div class="char-card" data-ult="warp">
+        <div class="name">⑤ クイックワープ <span class="cost">命中 3回</span></div>
+        <div class="desc">視界内の敵の背後へ瞬時にテレポート！※溜まってから3秒以内に使わないとチャージ消失。</div>
+      </div>
+      <div class="char-card" data-ult="heal">
+        <div class="name">⑥ オートヒール <span class="cost">命中 5回</span></div>
+        <div class="desc">5秒間、毎秒10HPを自動回復する(合計50回復)。</div>
       </div>
     </div>
 
     <div class="controls-hint">
-      【WASD】移動　【SPACE】ジャンプ　【マウス】照準<br>
-      【左クリック短押し】魔法弾発射　【左長押し or 右クリック】ガード展開<br>
+      【WASD】移動　【SPACE / SHIFT】ジャンプ　【マウス】照準<br>
+      【左クリック短押し】魔法弾発射　【左長押し / 右クリック / F】ガード展開<br>
       【E】必殺技発動（MP消費なし・オーバーヒート時も使用可）
     </div>
 
@@ -209,9 +241,9 @@
   </div>
 
   <script>
-    // --- 1. 3Dシーン & ライティング (コントラスト調整で視認性向上) ---
+    // --- 1. 3Dシーン & ライティング ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x6ca3d8); // 落ち着いた空の色
+    scene.background = new THREE.Color(0x5c93c4);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -219,7 +251,6 @@
     renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    // 白飛びを防ぐため光量を適正化
     const hemiLight = new THREE.HemisphereLight(0xfff5e6, 0x8c7b6c, 1.1);
     scene.add(hemiLight);
 
@@ -228,7 +259,7 @@
     sunLight.castShadow = true;
     scene.add(sunLight);
 
-    // --- 2. 神殿ステージ生成 (サンドストーン＆大理石調で視認性・雰囲気向上) ---
+    // --- 2. 神殿ステージ生成 ---
     const colliders = [];
     const obstacleMeshes = [];
     const mapObstacles = [];
@@ -250,7 +281,6 @@
       return mesh;
     }
 
-    // 床（温かみのある敷石テラスカラー）
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(70, 70),
       new THREE.MeshStandardMaterial({ color: 0xd2c7b5, roughness: 0.7 })
@@ -263,7 +293,6 @@
     grid.position.y = 0.02;
     scene.add(grid);
 
-    // 天井
     const ceiling = new THREE.Mesh(
       new THREE.PlaneGeometry(70, 70),
       new THREE.MeshStandardMaterial({ color: 0x57606f, roughness: 0.8 })
@@ -272,24 +301,21 @@
     ceiling.rotation.x = Math.PI / 2;
     scene.add(ceiling);
 
-    // 外壁（重厚な外周石壁）
     const wallColor = 0x8a7f70;
     addBox(0, 0, -35, 70, 16, 2, wallColor);
     addBox(0, 0, 35, 70, 16, 2, wallColor);
     addBox(-35, 0, 0, 2, 16, 70, 0x807566);
     addBox(35, 0, 0, 2, 16, 70, 0x807566);
 
-    // ★中央テラス高台 (段ごとにコントラストをつけて見やすく)
-    addBox(0, 0, 0, 16, 2.2, 16, 0xa69a88);          // 1段目
-    addBox(0, 2.2, 0, 10, 1.4, 10, 0x8f8371);        // 2段目
-    addBox(0, 3.6, 0, 4.5, 1.4, 4.5, 0xd4af37);      // 3段目 (頂上ゴールドテラス)
-    // 踏み台
+    // 中央テラス高台
+    addBox(0, 0, 0, 16, 2.2, 16, 0xa69a88);
+    addBox(0, 2.2, 0, 10, 1.4, 10, 0x8f8371);
+    addBox(0, 3.6, 0, 4.5, 1.4, 4.5, 0xd4af37);
     addBox(0, 0, 10.5, 4, 1.1, 3, 0xa69a88);
     addBox(0, 0, -10.5, 4, 1.1, 3, 0xa69a88);
     addBox(10.5, 0, 0, 3, 1.1, 4, 0xa69a88);
     addBox(-10.5, 0, 0, 3, 1.1, 4, 0xa69a88);
 
-    // 迷路壁（神殿の石壁カラー）
     const mazeWalls = [
       [-16, -16, 12, 2], [-16, 16, 12, 2], [16, -16, 12, 2], [16, 16, 12, 2],
       [-22, 0, 2, 16], [22, 0, 2, 16],
@@ -297,7 +323,6 @@
     ];
     mazeWalls.forEach(([x, z, w, d]) => addBox(x, 0, z, w, 4.5, d, 0x7a6f60));
 
-    // 石柱 (アイボリー大理石)
     const pillarGeo = new THREE.CylinderGeometry(1.2, 1.4, 8, 16);
     const pillarMat = new THREE.MeshStandardMaterial({ color: 0xdfd9ce, roughness: 0.5 });
     [[-12, -8], [12, -8], [-12, 8], [12, 8], [-25, -25], [25, 25], [-25, 25], [25, -25]].forEach(([x, z]) => {
@@ -311,7 +336,7 @@
       mapObstacles.push({ x, z, w: 2.8, d: 2.8, color: 0xdfd9ce });
     });
 
-    // --- 3. 自機 & 敵アバター ---
+    // --- 3. 自機＆敵アバター ---
     function createShieldMesh(colorHex = 0x00cec9) {
       const shield = new THREE.Mesh(
         new THREE.CircleGeometry(1.0, 6),
@@ -321,16 +346,24 @@
       return shield;
     }
 
+    const myAvatar = new THREE.Group();
+    const myBody = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.7, 16), new THREE.MeshStandardMaterial({ color: 0x0984e3 }));
+    myBody.position.y = 0.85;
+    const myHead = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshBasicMaterial({ color: 0x74b9ff }));
+    myHead.position.y = 1.8;
+    myAvatar.add(myBody, myHead);
+    myAvatar.visible = false;
+    scene.add(myAvatar);
+
     const myShield = createShieldMesh(0x00cec9);
     myShield.position.set(0, 0, -1.2);
     camera.add(myShield);
     scene.add(camera);
 
-    // フルシールド用球体
     function createFullShieldSphere(colorHex) {
       const geo = new THREE.SphereGeometry(1.6, 20, 20);
       const mat = new THREE.MeshBasicMaterial({
-        color: colorHex, transparent: true, opacity: 0.4, wireframe: true
+        color: colorHex, transparent: true, opacity: 0.4, wireframe: true, depthWrite: false
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.visible = false;
@@ -339,7 +372,6 @@
     const myFullShield = createFullShieldSphere(0xf1c40f);
     scene.add(myFullShield);
 
-    // 敵メッシュ
     const enemyMesh = new THREE.Group();
     const enemyBody = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.7, 16), new THREE.MeshStandardMaterial({ color: 0xff4757 }));
     enemyBody.position.y = 0.85;
@@ -347,9 +379,11 @@
     enemyHead.position.y = 1.8;
     const enemyShield = createShieldMesh(0xff4757);
     enemyShield.position.set(0, 1.2, -0.8);
+    enemyShield.visible = false;
     
     const enemyFullShield = createFullShieldSphere(0xff4757);
     enemyFullShield.position.set(0, 1.0, 0);
+    enemyFullShield.visible = false;
 
     function makeTextSprite(message) {
       const canvas = document.createElement('canvas');
@@ -374,56 +408,63 @@
     enemyMesh.visible = false;
     scene.add(enemyMesh);
 
-    // --- 4. 必殺技の3Dオブジェクト（ビーム・衝撃波球・チャージ光） ---
-    // ① メガビーム (二重構造：白コア＋色付きオーラで視認性抜群)
-    function createBeamGroup(colorHex) {
+    // --- 4. メガビーム & 必殺技オブジェクト ---
+    function createVisualBeam(colorHex) {
       const group = new THREE.Group();
-      // 外側オーラ
-      const outerGeo = new THREE.CylinderGeometry(1.2, 1.2, 60, 16);
+      const outerGeo = new THREE.CylinderGeometry(0.65, 0.65, 65, 16);
       outerGeo.rotateX(Math.PI / 2);
-      outerGeo.translate(0, 0, -30);
-      const outerMat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.65, depthWrite: false });
+      outerGeo.translate(0, 0, -32.5);
+      const outerMat = new THREE.MeshBasicMaterial({
+        color: colorHex, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false
+      });
       const outer = new THREE.Mesh(outerGeo, outerMat);
 
-      // 内側純白コア
-      const innerGeo = new THREE.CylinderGeometry(0.45, 0.45, 60, 16);
+      const innerGeo = new THREE.CylinderGeometry(0.28, 0.28, 65, 16);
       innerGeo.rotateX(Math.PI / 2);
-      innerGeo.translate(0, 0, -30);
-      const innerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthWrite: false });
+      innerGeo.translate(0, 0, -32.5);
+      const innerMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff, side: THREE.DoubleSide, depthWrite: false
+      });
       const inner = new THREE.Mesh(innerGeo, innerMat);
 
-      group.add(outer, inner);
+      const muzzle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.8, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false })
+      );
+
+      group.add(outer, inner, muzzle);
       group.visible = false;
       return group;
     }
-    const myBeam = createBeamGroup(0x00ffff);
+
+    const myBeam = createVisualBeam(0x00f2fe);
     scene.add(myBeam);
-    const enemyBeam = createBeamGroup(0xff2255);
+    const enemyBeam = createVisualBeam(0xff2255);
     scene.add(enemyBeam);
 
-    // メガビーム溜め中のエネルギー光球
     const chargeBall = new THREE.Mesh(
       new THREE.SphereGeometry(0.5, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.8 })
+      new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.85 })
     );
     chargeBall.visible = false;
     scene.add(chargeBall);
 
-    // ③ カースショック (全方位半透明球体)
     const shockSphereGeo = new THREE.SphereGeometry(1, 24, 24);
     const shockMat = new THREE.MeshBasicMaterial({
-      color: 0x9b59b6, transparent: true, opacity: 0.45, wireframe: true, depthWrite: false, side: THREE.DoubleSide
+      color: 0xa29bfe, transparent: true, opacity: 0.45, wireframe: true, depthWrite: false, side: THREE.DoubleSide
     });
     const shockSphere = new THREE.Mesh(shockSphereGeo, shockMat);
     shockSphere.visible = false;
     scene.add(shockSphere);
 
-    // --- 5. プレイヤー状態 ---
+    // --- 5. プレイヤー状態管理 ---
     const playerRadius = 0.45;
     const eyeHeight = 1.7;
+    const playerPos = new THREE.Vector3();
     let velocityY = 0;
     const gravity = -28;
     let isGrounded = false;
+    let isDead = false;
 
     let playerName = "魔導士A";
     let selectedUltType = "beam";
@@ -431,7 +472,9 @@
       beam:   { name: "メガビーム", req: 6 },
       shield: { name: "フルシールド", req: 4 },
       curse:  { name: "カースショック", req: 5 },
-      super:  { name: "スーパーマジック", req: 6 }
+      super:  { name: "スーパーマジック", req: 6 },
+      warp:   { name: "クイックワープ", req: 3 },
+      heal:   { name: "オートヒール", req: 5 }
     };
 
     let myHp = 100;
@@ -441,43 +484,58 @@
     let isGuarding = false;
     let isGameStarted = false;
 
-    // バフ/デバフ・必殺技タイマー
+    // バフ・タイマー
     let curseDebuffTimer = 0;
     let superMagicTimer = 0;
     let fullShieldTimer = 0;
+    let respawnInvincibleTimer = 0;
+    let autoHealTimer = 0;         // ⑥オートヒール持続タイマー
+    let warpExpireTimer = 0;        // ⑤クイックワープ3秒失効タイマー
 
-    // メガビーム用
     let beamCharging = false;
     let beamFiring = false;
     let beamTimer = 0;
     let beamDamageTick = 0;
     let lockedQuaternion = new THREE.Quaternion();
+    let lockedAimDir = new THREE.Vector3();
 
-    // ★必殺技が現在使用中か判定する関数（この間はゲージがたまらない）
     function isAnyUltActive() {
-      return beamCharging || beamFiring || (fullShieldTimer > 0) || (superMagicTimer > 0);
+      return beamCharging || beamFiring || (fullShieldTimer > 0) || (superMagicTimer > 0) || (autoHealTimer > 0);
     }
 
     const safeSpawns = [ { x: 0, z: -28 }, { x: 0, z: 28 }, { x: -28, z: 0 }, { x: 28, z: 0 } ];
 
-    function resetSpawn() {
+    function resetSpawn(giveInvincible = true) {
       const s = safeSpawns[Math.floor(Math.random() * safeSpawns.length)];
-      camera.position.set(s.x, eyeHeight, s.z);
+      playerPos.set(s.x, 2.5, s.z);
+      camera.position.set(s.x, 2.5 + eyeHeight, s.z);
       velocityY = 0;
       myHp = 100;
       myMp = 100;
+      isDead = false;
       isOverheated = false;
+      isGuarding = false;
       curseDebuffTimer = 0;
       superMagicTimer = 0;
       fullShieldTimer = 0;
+      autoHealTimer = 0;
+      warpExpireTimer = 0;
+
+      respawnInvincibleTimer = giveInvincible ? 5.0 : 0.0;
+
       beamCharging = false;
       beamFiring = false;
       myBeam.visible = false;
       chargeBall.visible = false;
+      myShield.visible = false;
+      myFullShield.visible = false;
+      myAvatar.visible = false;
+
+      document.getElementById('death-overlay').style.display = 'none';
       updateHudBars();
       document.getElementById('mp-label').innerText = 'MP (MANA)';
       document.getElementById('mp-label').style.color = '#fff';
-      document.getElementById('active-buff').innerText = '';
+      document.getElementById('info').innerText = giveInvincible ? '無敵時間中 (5.0s)' : '戦闘中';
     }
 
     function updateHudBars() {
@@ -491,54 +549,63 @@
       const pct = Math.min(100, (ultCharge / req) * 100);
       const ultBar = document.getElementById('ult-bar');
       ultBar.style.width = `${pct}%`;
-      document.getElementById('ult-text').innerText = `${Math.min(req, ultCharge)} / ${req} (HIT)`;
 
       if (ultCharge >= req) {
-        ultBar.classList.add('ult-ready');
-        document.getElementById('ult-label').innerText = `★ULT READY! 【E】発動`;
-        document.getElementById('ult-label').style.color = '#f1c40f';
+        if (selectedUltType === 'warp' && warpExpireTimer > 0) {
+          ultBar.className = 'ult-expiring';
+          document.getElementById('ult-label').innerText = `★ワープ発動【E】(残り${warpExpireTimer.toFixed(1)}s)`;
+          document.getElementById('ult-label').style.color = '#ff4757';
+          document.getElementById('ult-text').innerText = `${warpExpireTimer.toFixed(1)}s`;
+        } else {
+          ultBar.className = 'ult-ready';
+          document.getElementById('ult-label').innerText = `★ULT READY! 【E】発動`;
+          document.getElementById('ult-label').style.color = '#f1c40f';
+          document.getElementById('ult-text').innerText = `MAX`;
+        }
       } else {
-        ultBar.classList.remove('ult-ready');
+        ultBar.className = '';
         document.getElementById('ult-label').innerText = `ULT (【E】キー発動)`;
         document.getElementById('ult-label').style.color = '#fff';
+        document.getElementById('ult-text').innerText = `${Math.min(req, ultCharge)} / ${req} (HIT)`;
       }
     }
 
     function resolveCollision(newX, newZ) {
       let finalX = newX, finalZ = newZ;
       const playerBox = new THREE.Box3();
-      const footHeight = camera.position.y - eyeHeight + 0.35;
-      const topHeight = camera.position.y + 0.1;
+      const footHeight = playerPos.y + 0.35;
+      const topHeight = playerPos.y + eyeHeight + 0.1;
 
-      playerBox.min.set(finalX - playerRadius, footHeight, camera.position.z - playerRadius);
-      playerBox.max.set(finalX + playerRadius, topHeight, camera.position.z + playerRadius);
+      playerBox.min.set(finalX - playerRadius, footHeight, playerPos.z - playerRadius);
+      playerBox.max.set(finalX + playerRadius, topHeight, playerPos.z + playerRadius);
       for (let box of colliders) {
-        if (box.intersectsBox(playerBox)) { finalX = camera.position.x; break; }
+        if (box.intersectsBox(playerBox)) { finalX = playerPos.x; break; }
       }
 
       playerBox.min.set(finalX - playerRadius, footHeight, finalZ - playerRadius);
       playerBox.max.set(finalX + playerRadius, topHeight, finalZ + playerRadius);
       for (let box of colliders) {
-        if (box.intersectsBox(playerBox)) { finalZ = camera.position.z; break; }
+        if (box.intersectsBox(playerBox)) { finalZ = playerPos.z; break; }
       }
       return { x: finalX, z: finalZ };
     }
 
-    function checkGround(py) {
+    function checkGround(prevY, currY) {
       let groundLevel = 0;
-      const pFoot = py - eyeHeight;
       for (let box of colliders) {
-        if (camera.position.x >= box.min.x - playerRadius && camera.position.x <= box.max.x + playerRadius &&
-            camera.position.z >= box.min.z - playerRadius && camera.position.z <= box.max.z + playerRadius) {
-          if (box.max.y <= pFoot + 0.35 && box.max.y > groundLevel) {
-            groundLevel = box.max.y;
+        if (playerPos.x >= box.min.x - playerRadius * 0.6 && playerPos.x <= box.max.x + playerRadius * 0.6 &&
+            playerPos.z >= box.min.z - playerRadius * 0.6 && playerPos.z <= box.max.z + playerRadius * 0.6) {
+          if (prevY >= box.max.y - 0.15 && currY <= box.max.y + 0.4) {
+            if (box.max.y > groundLevel) {
+              groundLevel = box.max.y;
+            }
           }
         }
       }
-      return groundLevel + eyeHeight;
+      return groundLevel;
     }
 
-    // --- 6. 魔法弾 & 爆発エフェクト ---
+    // --- 6. 魔法弾 & 爆発 ---
     const spells = [];
     const particles = [];
 
@@ -546,14 +613,14 @@
       const pLight = new THREE.PointLight(colorHex, 4, 7);
       pLight.position.copy(pos);
       scene.add(pLight);
-      setTimeout(() => scene.remove(pLight), 100);
+      setTimeout(() => scene.remove(pLight), 90);
 
-      for (let i = 0; i < 18; i++) {
+      for (let i = 0; i < 16; i++) {
         const pMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: colorHex }));
         pMesh.position.copy(pos);
         scene.add(pMesh);
         const v = new THREE.Vector3((Math.random() - 0.5) * 14, Math.random() * 10 + 1, (Math.random() - 0.5) * 14);
-        particles.push({ mesh: pMesh, v, life: 0.45 + Math.random() * 0.25 });
+        particles.push({ mesh: pMesh, v, life: 0.4 + Math.random() * 0.2 });
       }
     }
 
@@ -574,15 +641,15 @@
       shakeIntensity = 0.35;
       const overlay = document.getElementById('damage-overlay');
       overlay.style.opacity = '1';
-      setTimeout(() => { overlay.style.opacity = '0'; }, 180);
+      setTimeout(() => { overlay.style.opacity = '0'; }, 160);
     }
 
     // --- 7. P2P通信 (PeerJS) ---
     let peer = null, conn = null;
 
     function initNetwork(roomId) {
-      const hostId = `temple-magic-fix-${roomId}-host`;
-      const guestId = `temple-magic-fix-${roomId}-guest`;
+      const hostId = `temple-v4-${roomId}-host`;
+      const guestId = `temple-v4-${roomId}-guest`;
 
       peer = new Peer(hostId);
       peer.on('open', () => { document.getElementById('info').innerText = '相手の参加を待機中...'; });
@@ -610,76 +677,70 @@
           enemyNameTag.position.set(0, 2.5, 0);
           enemyMesh.add(enemyNameTag);
         } else if (data.type === 'move') {
-          enemyMesh.position.set(data.x, data.y - eyeHeight, data.z);
+          enemyMesh.position.set(data.x, data.y, data.z);
           enemyMesh.rotation.y = data.rot;
           enemyShield.visible = data.isGuarding;
           enemyFullShield.visible = data.hasFullShield;
         } else if (data.type === 'shoot') {
           spawnSpell(data.x, data.y, data.z, data.vx, data.vy, data.vz, false);
         } else if (data.type === 'hit_confirmed') {
-          // ★相手から命中が確定した連絡が届いた時だけULTゲージを増やす！
           if (!isAnyUltActive()) {
             const req = ultConfig[selectedUltType].req;
             if (ultCharge < req) {
               ultCharge++;
+              if (ultCharge >= req && selectedUltType === 'warp') {
+                warpExpireTimer = 3.0; // ⑤クイックワープの3秒タイマースタート
+              }
               updateHudBars();
             }
           }
         } else if (data.type === 'enemyKilled') {
           document.getElementById('info').innerText = '相手を撃破しました！';
         } else if (data.type === 'ult_curse_hit') {
-          // カースショック被弾
+          if (respawnInvincibleTimer > 0) return;
+          superMagicTimer = 0;
           myMp = 0;
           triggerOverheat();
           curseDebuffTimer = 10.0;
           triggerHitEffect();
-          document.getElementById('info').innerText = 'カースショック被弾！10秒間MPゼロ＆鈍足！';
+          document.getElementById('info').innerText = 'カースショック被弾！MPが0になり10秒間弱体化！';
         } else if (data.type === 'curse_sphere_anim') {
           triggerCurseSphereVisual(new THREE.Vector3(data.x, data.y, data.z));
-        } else if (data.type === 'ult_beam_start') {
+        } else if (data.type === 'ult_beam_start' || data.type === 'ult_beam_update') {
           enemyBeam.visible = true;
-          enemyBeam.position.set(data.x, data.y, data.z);
-          enemyBeam.quaternion.set(data.qx, data.qy, data.qz, data.qw);
-        } else if (data.type === 'ult_beam_update') {
           enemyBeam.position.set(data.x, data.y, data.z);
           enemyBeam.quaternion.set(data.qx, data.qy, data.qz, data.qw);
         } else if (data.type === 'ult_beam_end') {
           enemyBeam.visible = false;
         } else if (data.type === 'beam_damage') {
-          // ★メガビーム被弾処理
-          if (myHp > 0) {
-            let dmg = data.dmg;
-            if (fullShieldTimer > 0) {
-              dmg = 0; // フルシールド無効化
-            }
-            if (dmg > 0) {
-              myHp = Math.max(0, myHp - dmg);
-              triggerHitEffect();
-              updateHudBars();
-              if (myHp <= 0) {
-                document.getElementById('info').innerText = '撃破されました！リスポーン中...';
-                if (conn && conn.open) conn.send({ type: 'enemyKilled' });
-                setTimeout(() => {
-                  resetSpawn();
-                  document.getElementById('info').innerText = '戦闘中';
-                }, 3000);
-              }
-            }
+          // ★メガビーム被弾処理：シールド貫通（フルシールド・通常ガード無視で直撃）
+          if (myHp > 0 && !isDead && respawnInvincibleTimer <= 0) {
+            let dmg = data.dmg; // 軽減なし！
+            myHp = Math.max(0, myHp - dmg);
+            triggerHitEffect();
+            updateHudBars();
+            if (myHp <= 0) handlePlayerDeath();
           }
         }
       });
     }
 
-    // --- 8. 入力 & バリア・発射の独立判定 ---
+    // --- 8. 入力制御（マウス物理状態と完全直結して見た目バグ根絶） ---
     let isLocked = false;
     let pitch = 0, yaw = 0;
     const keys = {};
-    let leftMouseDown = false;
-    let leftDownStartTime = 0;
-    let rightMouseDown = false;
+    let mouseButtonsState = 0;
+    let leftDownTime = 0;
     let lastShootTime = 0;
 
-    // キャラ選択UI
+    function clearInputs() {
+      mouseButtonsState = 0;
+      Object.keys(keys).forEach(k => keys[k] = false);
+      isGuarding = false;
+      myShield.visible = false;
+    }
+    window.addEventListener('blur', clearInputs);
+
     document.querySelectorAll('.char-card').forEach(card => {
       card.addEventListener('click', () => {
         document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
@@ -692,7 +753,7 @@
       playerName = document.getElementById('name-input').value.trim() || '魔導士';
       const room = document.getElementById('room-input').value.trim() || 'arena888';
       initNetwork(room);
-      resetSpawn();
+      resetSpawn(true);
       isGameStarted = true;
       document.getElementById('overlay').style.display = 'none';
       document.body.requestPointerLock();
@@ -704,59 +765,55 @@
 
     document.addEventListener('pointerlockchange', () => {
       isLocked = document.pointerLockElement === document.body;
-      document.getElementById('resume-overlay').style.display = (!isLocked && isGameStarted && myHp > 0) ? 'flex' : 'none';
+      if (!isLocked) clearInputs();
+      document.getElementById('resume-overlay').style.display = (!isLocked && isGameStarted && !isDead) ? 'flex' : 'none';
     });
 
     document.addEventListener('mousemove', (e) => {
-      if (!isLocked) return;
-      if (beamFiring) return; // メガビーム中は視点固定
+      if (!isLocked || isDead || beamFiring) return;
       yaw -= e.movementX * 0.0022;
       pitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, pitch - e.movementY * 0.0022));
     });
 
     window.addEventListener('keydown', (e) => {
       keys[e.code] = true;
-      if (e.code === 'Space' && isGrounded && isLocked && myHp > 0) {
+      if ((e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') && isGrounded && isLocked && !isDead) {
         const jPower = (curseDebuffTimer > 0 || beamFiring) ? 5 : 10;
         velocityY = jPower;
         isGrounded = false;
       }
-      if (e.code === 'KeyE' && isLocked && myHp > 0) {
+      if (e.code === 'KeyE' && isLocked && !isDead) {
         tryActivateUltimate();
       }
     });
 
     window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-    // ★バリア展開時に弾が暴発しないよう短押しと長押しを明確に分離！
+    // ★e.buttons による確実なマウス状態同期
     window.addEventListener('mousedown', (e) => {
-      if (!isLocked || myHp <= 0) return;
+      if (!isLocked || isDead) return;
+      mouseButtonsState = e.buttons;
       if (e.button === 0) {
-        leftMouseDown = true;
-        leftDownStartTime = Date.now();
-      } else if (e.button === 2) {
-        rightMouseDown = true;
+        leftDownTime = Date.now();
       }
     });
 
     window.addEventListener('mouseup', (e) => {
-      if (!isLocked || myHp <= 0) return;
-      if (e.button === 0) {
-        const pressDuration = Date.now() - leftDownStartTime;
-        leftMouseDown = false;
+      if (!isLocked || isDead) return;
+      mouseButtonsState = e.buttons;
 
-        // 短押し（180ms未満）かつガード発動前なら通常弾を発射！
-        if (pressDuration < 180 && !beamFiring && !beamCharging) {
+      if (e.button === 0) {
+        const pressDuration = Date.now() - leftDownTime;
+        // 170ms未満の短押しなら魔法弾発射
+        if (pressDuration < 170 && !beamFiring && !beamCharging) {
           const now = Date.now();
-          if (now - lastShootTime >= 180) {
+          if (now - lastShootTime >= 150) {
             if (!isOverheated && (myMp >= 12 || superMagicTimer > 0)) {
               tryFireSpell();
               lastShootTime = now;
             }
           }
         }
-      } else if (e.button === 2) {
-        rightMouseDown = false;
       }
     });
 
@@ -772,13 +829,12 @@
         }
       }
 
-      // ※必殺技ゲージは発射時ではなく「敵に命中時」に加算されるよう修正済み
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
-      const sx = camera.position.x + dir.x * 0.6;
-      const sy = camera.position.y + dir.y * 0.6;
-      const sz = camera.position.z + dir.z * 0.6;
-      const speed = 42;
+      const sx = playerPos.x + dir.x * 0.6;
+      const sy = playerPos.y + eyeHeight + dir.y * 0.6;
+      const sz = playerPos.z + dir.z * 0.6;
+      const speed = 44;
       const vx = dir.x * speed, vy = dir.y * speed, vz = dir.z * speed;
 
       spawnSpell(sx, sy, sz, vx, vy, vz, true);
@@ -796,30 +852,92 @@
       mpLabel.style.color = '#ff7675';
     }
 
-    // --- 9. 必殺技の発動 ---
+    function handlePlayerDeath() {
+      isDead = true;
+      clearInputs();
+      myShield.visible = false;
+      myFullShield.visible = false;
+      myAvatar.visible = false;
+      myBeam.visible = false;
+      chargeBall.visible = false;
+      beamCharging = false;
+      beamFiring = false;
+
+      const deathOverlay = document.getElementById('death-overlay');
+      const countdown = document.getElementById('death-countdown');
+      deathOverlay.style.display = 'flex';
+      let sec = 3;
+      countdown.innerText = `リスポーンまで ${sec} 秒`;
+
+      if (conn && conn.open) conn.send({ type: 'enemyKilled' });
+
+      const timer = setInterval(() => {
+        sec--;
+        if (sec > 0) {
+          countdown.innerText = `リスポーンまで ${sec} 秒`;
+        } else {
+          clearInterval(timer);
+          resetSpawn(true);
+        }
+      }, 1000);
+    }
+
+    // --- 9. 必殺技発動 (全6種) ---
     function tryActivateUltimate() {
       const req = ultConfig[selectedUltType].req;
       if (ultCharge < req) return;
       if (isAnyUltActive()) return;
 
+      if (selectedUltType === 'warp') {
+        // ⑤ クイックワープ：視界内に敵がいるか判定
+        if (!enemyMesh.visible) {
+          document.getElementById('info').innerText = '敵が視界内にいません！';
+          return;
+        }
+
+        // カメラ視野内（前方かつ障害物に完全に遮られていないか）
+        const toEnemy = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)).sub(camera.position);
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+
+        if (camDir.dot(toEnemy.clone().normalize()) < 0.2) {
+          document.getElementById('info').innerText = '敵が正面視界内にいません！';
+          return;
+        }
+
+        // 敵の真後ろへワープ！
+        const enemyRotY = enemyMesh.rotation.y;
+        const behindVec = new THREE.Vector3(Math.sin(enemyRotY), 0, Math.cos(enemyRotY)).multiplyScalar(1.8);
+        const targetPos = enemyMesh.position.clone().add(behindVec);
+
+        playerPos.set(targetPos.x, enemyMesh.position.y, targetPos.z);
+        // 敵の方を向く
+        yaw = enemyRotY;
+        pitch = 0;
+
+        ultCharge = 0;
+        warpExpireTimer = 0;
+        updateHudBars();
+        createExplosion(playerPos, 0x00cec9);
+        document.getElementById('info').innerText = 'クイックワープ成功！敵の背後へテレポート！';
+        return;
+      }
+
+      // 他の必殺技はチャージ消費
       ultCharge = 0;
       updateHudBars();
 
       if (selectedUltType === 'beam') {
-        // ① メガビーム (溜め時間を1秒に変更！)
         beamCharging = true;
         beamTimer = 1.0;
         chargeBall.visible = true;
         document.getElementById('info').innerText = 'メガビーム チャージ中...(1秒)';
       } else if (selectedUltType === 'shield') {
-        // ② フルシールド
         fullShieldTimer = 8.0;
-        document.getElementById('info').innerText = 'フルシールド展開！(8秒間被弾無効)';
+        document.getElementById('info').innerText = 'フルシールド展開！(8秒間 ダメージ60%カット)';
       } else if (selectedUltType === 'curse') {
-        // ③ カースショック (半透明球体で全方位へ)
         activateCurseShock();
       } else if (selectedUltType === 'super') {
-        // ④ スーパーマジック
         myMp = 100;
         isOverheated = false;
         document.getElementById('mp-bar').classList.remove('overheat');
@@ -827,21 +945,22 @@
         document.getElementById('mp-label').style.color = '#fff';
         superMagicTimer = 10.0;
         document.getElementById('info').innerText = 'スーパーマジック発動！(MP無限＆超高速)';
+      } else if (selectedUltType === 'heal') {
+        autoHealTimer = 5.0;
+        document.getElementById('info').innerText = 'オートヒール発動！(5秒間 毎秒10HP回復)';
       }
     }
 
-    // カースショック (半径15mの半透明球体)
     function activateCurseShock() {
-      const myPos = camera.position.clone();
-      triggerCurseSphereVisual(myPos);
+      const centerPos = new THREE.Vector3(playerPos.x, playerPos.y + 0.9, playerPos.z);
+      triggerCurseSphereVisual(centerPos);
       if (conn && conn.open) {
-        conn.send({ type: 'curse_sphere_anim', x: myPos.x, y: myPos.y, z: myPos.z });
+        conn.send({ type: 'curse_sphere_anim', x: centerPos.x, y: centerPos.y, z: centerPos.z });
       }
 
-      // 上下にいる敵にも当たるよう3D球体判定 (半径15m)
       if (enemyMesh.visible) {
         const enemyCenter = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
-        const dist = camera.position.distanceTo(enemyCenter);
+        const dist = centerPos.distanceTo(enemyCenter);
         if (dist <= 15.0) {
           if (conn && conn.open) conn.send({ type: 'ult_curse_hit' });
           document.getElementById('info').innerText = 'カースショック命中！相手を弱体化！';
@@ -855,14 +974,13 @@
       shockSphere.position.copy(pos);
       shockSphere.scale.set(0.1, 0.1, 0.1);
       shockSphere.visible = true;
-      let s = 0.1;
       const startTime = performance.now();
       function expand() {
         const elapsed = (performance.now() - startTime) / 1000;
-        s = 0.1 + (elapsed / 0.45) * 15;
+        const s = 0.1 + (elapsed / 0.4) * 15;
         shockSphere.scale.set(s, s, s);
-        shockSphere.material.opacity = Math.max(0, 0.45 * (1 - elapsed / 0.45));
-        if (elapsed < 0.45) {
+        shockSphere.material.opacity = Math.max(0, 0.5 * (1 - elapsed / 0.4));
+        if (elapsed < 0.4) {
           requestAnimationFrame(expand);
         } else {
           shockSphere.visible = false;
@@ -871,30 +989,26 @@
       expand();
     }
 
-    // メガビームの貫通判定＆ダメージ
-    function checkBeamDamage(delta) {
+    // ★メガビーム：強化版（0.2秒毎に4ダメ、貫通後2ダメ）
+    function checkBeamDamage(delta, beamOrigin, beamDir) {
       beamDamageTick += delta;
       if (beamDamageTick < 0.2) return;
       beamDamageTick = 0;
 
       if (!enemyMesh.visible) return;
 
-      const beamOrigin = camera.position.clone();
-      const beamDir = new THREE.Vector3();
-      camera.getWorldDirection(beamDir);
-
-      const raycaster = new THREE.Raycaster(beamOrigin, beamDir, 0.1, 60);
+      const raycaster = new THREE.Raycaster(beamOrigin, beamDir, 0.1, 65);
       const hits = raycaster.intersectObjects(obstacleMeshes);
 
       const enemyCenter = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
       const toEnemy = enemyCenter.clone().sub(beamOrigin);
       const projDist = toEnemy.dot(beamDir);
 
-      if (projDist > 0 && projDist < 60) {
+      if (projDist > 0 && projDist < 65) {
         const closestPoint = beamOrigin.clone().addScaledVector(beamDir, projDist);
         const distToLine = enemyCenter.distanceTo(closestPoint);
 
-        if (distToLine < 1.6) {
+        if (distToLine < 1.7) {
           let obstacleInFront = false;
           for (let hit of hits) {
             if (hit.distance < projDist) {
@@ -902,7 +1016,8 @@
               break;
             }
           }
-          const dmg = obstacleInFront ? 1 : 2;
+          // 強化：貫通前4ダメージ / 貫通後2ダメージ
+          const dmg = obstacleInFront ? 2 : 4;
           if (conn && conn.open) {
             conn.send({ type: 'beam_damage', dmg });
           }
@@ -945,8 +1060,8 @@
         mapCtx.fill();
       }
 
-      const px = (camera.position.x + 35) * mapScale;
-      const pz = (camera.position.z + 35) * mapScale;
+      const px = (playerPos.x + 35) * mapScale;
+      const pz = (playerPos.z + 35) * mapScale;
       mapCtx.fillStyle = '#0984e3';
       mapCtx.beginPath();
       mapCtx.arc(px, pz, 4, 0, Math.PI * 2);
@@ -962,72 +1077,115 @@
 
     // --- 11. メインループ ---
     const clock = new THREE.Clock();
+    let networkTimer = 0;
 
     function animate() {
       requestAnimationFrame(animate);
       const delta = Math.min(clock.getDelta(), 0.1);
 
-      // メガビーム処理
+      // 無敵タイマー
+      if (respawnInvincibleTimer > 0) {
+        respawnInvincibleTimer -= delta;
+        document.getElementById('invincible-overlay').style.opacity = '1';
+        if (respawnInvincibleTimer <= 0) {
+          document.getElementById('invincible-overlay').style.opacity = '0';
+          document.getElementById('info').innerText = '戦闘中';
+        }
+      }
+
+      // ⑥ オートヒール処理 (毎秒10HP回復)
+      if (autoHealTimer > 0) {
+        autoHealTimer -= delta;
+        myHp = Math.min(100, myHp + 10 * delta);
+        updateHudBars();
+      }
+
+      // ⑤ クイックワープ3秒失効タイマー
+      if (selectedUltType === 'warp' && ultCharge >= 3) {
+        warpExpireTimer -= delta;
+        updateHudBars();
+        if (warpExpireTimer <= 0) {
+          ultCharge = 0;
+          document.getElementById('info').innerText = 'クイックワープ有効時間が切れました';
+          updateHudBars();
+        }
+      }
+
+      // メガビーム制御
       if (beamCharging) {
         beamTimer -= delta;
         document.getElementById('info').innerText = `メガビーム 溜め中... (${beamTimer.toFixed(1)}s)`;
-        
-        // 溜め中はカメラの少し前にチャージボールを表示
-        const dir = new THREE.Vector3();
-        camera.getWorldDirection(dir);
-        chargeBall.position.copy(camera.position).addScaledVector(dir, 1.2);
-        chargeBall.rotation.y += delta * 8;
+
+        const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+        chargeBall.position.set(playerPos.x + fwd.x * 1.0, playerPos.y + 1.2, playerPos.z + fwd.z * 1.0);
+        chargeBall.rotation.y += delta * 12;
 
         if (beamTimer <= 0) {
           beamCharging = false;
           chargeBall.visible = false;
           beamFiring = true;
           beamTimer = 5.0;
-          lockedQuaternion.copy(camera.quaternion);
 
+          lockedQuaternion.copy(camera.quaternion);
+          camera.getWorldDirection(lockedAimDir);
+
+          myAvatar.visible = true;
           myBeam.visible = true;
-          myBeam.position.copy(camera.position);
-          myBeam.quaternion.copy(camera.quaternion);
+
+          const chestPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.2, playerPos.z);
+          myBeam.position.copy(chestPos);
+          myBeam.quaternion.copy(lockedQuaternion);
 
           if (conn && conn.open) {
             conn.send({
               type: 'ult_beam_start',
-              x: camera.position.x, y: camera.position.y, z: camera.position.z,
-              qx: camera.quaternion.x, qy: camera.quaternion.y, qz: camera.quaternion.z, qw: camera.quaternion.w
+              x: chestPos.x, y: chestPos.y, z: chestPos.z,
+              qx: lockedQuaternion.x, qy: lockedQuaternion.y, qz: lockedQuaternion.z, qw: lockedQuaternion.w
             });
           }
         }
       } else if (beamFiring) {
         beamTimer -= delta;
-        // 視点固定
-        camera.quaternion.copy(lockedQuaternion);
-        myBeam.position.copy(camera.position);
+
+        const chestPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.2, playerPos.z);
+        const backDir = lockedAimDir.clone().negate();
+        let targetCamDist = 3.5;
+
+        const wallRay = new THREE.Raycaster(chestPos, backDir, 0.2, 3.5);
+        const wallHits = wallRay.intersectObjects(obstacleMeshes);
+        if (wallHits.length > 0) {
+          targetCamDist = Math.max(0.8, wallHits[0].distance - 0.3);
+        }
+
+        camera.position.set(
+          playerPos.x + backDir.x * targetCamDist,
+          playerPos.y + 1.2 + 1.0 * (targetCamDist / 3.5),
+          playerPos.z + backDir.z * targetCamDist
+        );
+        camera.lookAt(playerPos.x + lockedAimDir.x * 10, playerPos.y + 1.2, playerPos.z + lockedAimDir.z * 10);
+
+        myAvatar.position.set(playerPos.x, playerPos.y, playerPos.z);
+        myAvatar.rotation.y = yaw;
+        myBeam.position.copy(chestPos);
         myBeam.quaternion.copy(lockedQuaternion);
 
-        checkBeamDamage(delta);
+        checkBeamDamage(delta, chestPos, lockedAimDir);
         document.getElementById('info').innerText = `メガビーム放射中！！ (${beamTimer.toFixed(1)}s)`;
-
-        if (conn && conn.open) {
-          conn.send({
-            type: 'ult_beam_update',
-            x: camera.position.x, y: camera.position.y, z: camera.position.z,
-            qx: camera.quaternion.x, qy: camera.quaternion.y, qz: camera.quaternion.z, qw: camera.quaternion.w
-          });
-        }
 
         if (beamTimer <= 0) {
           beamFiring = false;
           myBeam.visible = false;
+          myAvatar.visible = false;
           if (conn && conn.open) conn.send({ type: 'ult_beam_end' });
           document.getElementById('info').innerText = '戦闘中';
         }
       }
 
-      // フルシールド処理
+      // フルシールド同期
       if (fullShieldTimer > 0) {
         fullShieldTimer -= delta;
         myFullShield.visible = true;
-        myFullShield.position.copy(camera.position);
+        myFullShield.position.set(playerPos.x, playerPos.y + 0.9, playerPos.z);
         myFullShield.rotation.y += delta * 2;
       } else {
         myFullShield.visible = false;
@@ -1036,19 +1194,24 @@
       if (superMagicTimer > 0) superMagicTimer -= delta;
       if (curseDebuffTimer > 0) curseDebuffTimer -= delta;
 
-      // バフ状態表示
+      // HUDバフ表示
       const buffList = [];
+      if (respawnInvincibleTimer > 0) buffList.push(`<span style="color:#f1c40f">無敵時間 (${respawnInvincibleTimer.toFixed(1)}s)</span>`);
+      if (autoHealTimer > 0) buffList.push(`<span style="color:#2ecc71">オートヒール (${autoHealTimer.toFixed(1)}s)</span>`);
       if (superMagicTimer > 0) buffList.push(`スーパーマジック (${superMagicTimer.toFixed(1)}s)`);
-      if (fullShieldTimer > 0) buffList.push(`フルシールド (${fullShieldTimer.toFixed(1)}s)`);
+      if (fullShieldTimer > 0) buffList.push(`フルシールド(60%カット) (${fullShieldTimer.toFixed(1)}s)`);
       if (curseDebuffTimer > 0) buffList.push(`<span style="color:#ff7675">呪い鈍足・跳躍低下 (${curseDebuffTimer.toFixed(1)}s)</span>`);
       document.getElementById('active-buff').innerHTML = buffList.join(' | ');
 
-      // 操作・移動処理
-      if (isLocked && myHp > 0) {
-        // ★左長押し（180ms超）または右クリックでガード
-        const isLeftHolding = leftMouseDown && (Date.now() - leftDownStartTime >= 180);
-        isGuarding = (isLeftHolding || rightMouseDown) && !isOverheated && myMp > 0 && !beamFiring;
-        myShield.visible = isGuarding;
+      // ★シールド見た目バグの完全撲滅処理
+      if (isLocked && !isDead) {
+        // 左長押し(170ms超)、右クリック(buttons bit 2)、Fキーのいずれかが「現実に」入力されている時だけガード
+        const isLeftHolding = (mouseButtonsState & 1) && (Date.now() - leftDownTime >= 170);
+        const isRightActive = (mouseButtonsState & 2) !== 0;
+        const isFActive = !!keys['KeyF'];
+
+        isGuarding = (isLeftHolding || isRightActive || isFActive) && !isOverheated && myMp > 0 && !beamFiring;
+        myShield.visible = isGuarding; // 条件が偽なら100% falseになる
 
         if (superMagicTimer <= 0) {
           if (isGuarding) {
@@ -1078,6 +1241,7 @@
           }
           camera.rotation.y = yaw + shakeX;
           camera.rotation.x = pitch + shakeY;
+          camera.position.set(playerPos.x, playerPos.y + eyeHeight, playerPos.z);
         }
 
         const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
@@ -1097,44 +1261,62 @@
           if (beamFiring) speed = 4.0;
           if (superMagicTimer > 0) speed *= 1.5;
 
-          const targetX = camera.position.x + moveVec.x * speed * delta;
-          const targetZ = camera.position.z + moveVec.z * speed * delta;
+          const targetX = playerPos.x + moveVec.x * speed * delta;
+          const targetZ = playerPos.z + moveVec.z * speed * delta;
           const resolved = resolveCollision(targetX, targetZ);
-          camera.position.x = resolved.x;
-          camera.position.z = resolved.z;
+          playerPos.x = resolved.x;
+          playerPos.z = resolved.z;
         }
 
+        const prevY = playerPos.y;
         velocityY += gravity * delta;
-        camera.position.y += velocityY * delta;
+        playerPos.y += velocityY * delta;
 
-        if (camera.position.y > 15.2) {
-          camera.position.y = 15.2;
+        if (playerPos.y < -1.0) {
+          const s = safeSpawns[0];
+          playerPos.set(s.x, 2.5, s.z);
           velocityY = 0;
         }
 
-        const targetFloorY = checkGround(camera.position.y);
-        if (camera.position.y <= targetFloorY) {
-          camera.position.y = targetFloorY;
+        const floorY = checkGround(prevY, playerPos.y);
+        if (playerPos.y <= floorY) {
+          playerPos.y = floorY;
           velocityY = 0;
           isGrounded = true;
         } else {
           isGrounded = false;
         }
 
-        if (conn && conn.open) {
-          conn.send({
-            type: 'move',
-            x: camera.position.x,
-            y: camera.position.y,
-            z: camera.position.z,
-            rot: yaw,
-            isGuarding,
-            hasFullShield: fullShieldTimer > 0
-          });
+        // 30Hz送信
+        networkTimer += delta;
+        if (networkTimer >= 0.033) {
+          networkTimer = 0;
+          if (conn && conn.open) {
+            conn.send({
+              type: 'move',
+              x: playerPos.x,
+              y: playerPos.y,
+              z: playerPos.z,
+              rot: yaw,
+              isGuarding,
+              hasFullShield: fullShieldTimer > 0
+            });
+            if (beamFiring) {
+              const chestPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.2, playerPos.z);
+              conn.send({
+                type: 'ult_beam_update',
+                x: chestPos.x, y: chestPos.y, z: chestPos.z,
+                qx: lockedQuaternion.x, qy: lockedQuaternion.y, qz: lockedQuaternion.z, qw: lockedQuaternion.w
+              });
+            }
+          }
         }
 
         renderCompass();
         renderMinimap();
+      } else {
+        // ロックが外れている時や死亡時は絶対にシールド非表示
+        myShield.visible = false;
       }
 
       // パーティクル更新
@@ -1166,7 +1348,6 @@
         }
         if (s.group.position.y <= 0.2 || s.group.position.y >= 15.8) collided = true;
 
-        // 自分の弾が敵に当たった
         if (s.isMine && enemyMesh.visible) {
           const enemyCenter = enemyMesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
           if (s.group.position.distanceTo(enemyCenter) < 1.25) {
@@ -1174,45 +1355,45 @@
           }
         }
 
-        // 相手の弾が自分に当たった
-        if (!s.isMine && myHp > 0) {
-          if (camera.position.distanceTo(s.group.position) < 1.3) {
+        // 相手の弾が自分に命中
+        if (!s.isMine && myHp > 0 && !isDead) {
+          const myCenter = new THREE.Vector3(playerPos.x, playerPos.y + 0.9, playerPos.z);
+          if (s.group.position.distanceTo(myCenter) < 1.25) {
             collided = true;
             let damage = 25;
 
-            // 相手に「命中確定」を送信（相手のULTゲージが溜まる）
-            if (conn && conn.open) conn.send({ type: 'hit_confirmed' });
-
-            if (fullShieldTimer > 0) {
-              damage = 0; // フルシールドは完全防御
+            if (respawnInvincibleTimer > 0) {
+              damage = 0;
               createExplosion(s.group.position, 0xf1c40f);
-            } else if (isGuarding) {
-              const camDir = new THREE.Vector3();
-              camera.getWorldDirection(camDir);
-              const bDir = new THREE.Vector3(s.vx, 0, s.vz).normalize();
-              if (camDir.dot(bDir) < -0.3) {
-                damage = 6;
-                if (superMagicTimer <= 0) {
-                  myMp = Math.max(0, myMp - 30);
-                  if (myMp <= 0) triggerOverheat();
+            } else {
+              if (conn && conn.open) conn.send({ type: 'hit_confirmed' });
+
+              if (fullShieldTimer > 0) {
+                damage *= 0.4;
+                createExplosion(s.group.position, 0xf1c40f);
+              } else if (isGuarding) {
+                const camDir = new THREE.Vector3();
+                camera.getWorldDirection(camDir);
+                const bDir = new THREE.Vector3(s.vx, 0, s.vz).normalize();
+                if (camDir.dot(bDir) < -0.3) {
+                  damage = 6;
+                  if (superMagicTimer <= 0) {
+                    myMp = Math.max(0, myMp - 30);
+                    if (myMp <= 0) triggerOverheat();
+                  }
+                  createExplosion(myShield.getWorldPosition(new THREE.Vector3()), 0x00cec9);
                 }
-                createExplosion(myShield.getWorldPosition(new THREE.Vector3()), 0x00cec9);
               }
-            }
 
-            if (damage > 0) {
-              myHp -= damage;
-              triggerHitEffect();
-            }
-            updateHudBars();
+              if (damage > 0) {
+                myHp -= damage;
+                triggerHitEffect();
+              }
+              updateHudBars();
 
-            if (myHp <= 0) {
-              document.getElementById('info').innerText = '撃破されました！リスポーン中...';
-              if (conn && conn.open) conn.send({ type: 'enemyKilled' });
-              setTimeout(() => {
-                resetSpawn();
-                document.getElementById('info').innerText = '戦闘中';
-              }, 3000);
+              if (myHp <= 0) {
+                handlePlayerDeath();
+              }
             }
           }
         }
@@ -1233,6 +1414,7 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
+    resetSpawn(false);
     animate();
   </script>
 </body>
