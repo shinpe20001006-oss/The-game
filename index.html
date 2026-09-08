@@ -442,6 +442,7 @@
 
     const _tmpVecA = new THREE.Vector3();
     const _tmpVecB = new THREE.Vector3();
+    const _tmpVecC = new THREE.Vector3();
     const sharedParticleGeo = new THREE.SphereGeometry(0.14, 5, 5);
 
     // --- 2. ステージ管理 ---
@@ -938,7 +939,7 @@
     }
 
     function broadcastMsg(payload) {
-      if (isSoloMode || currentStage === 'training') return;
+      if (currentStage === 'training') return;
       if (isHost) {
         Object.values(hostConnections).forEach(c => { if (c.open) c.send(payload); });
       } else if (guestConn && guestConn.open) {
@@ -1214,7 +1215,89 @@
       }
     }
 
-    function spawnSpell(x, y, z, vx, vy, vz, shooterId, colorHex = 0x0984e3, scale = 1.0, isHoming = false, isExSuperHoming = false) {
+    // ★照準から最も近い敵を選定する関数（発射時に呼び出し）
+    function findBestCrosshairTarget(camPos, camDir) {
+      let bestTarget = null;
+      let bestScore = -Infinity;
+      let fallbackTarget = null;
+      let fallbackScore = -Infinity;
+
+      if (currentStage === 'training') {
+        dummies.forEach((d, idx) => {
+          if (d.hp <= 0) return;
+          const targetPos = d.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+          const toTarget = targetPos.clone().sub(camPos);
+          const dist = toTarget.length();
+          if (dist < 0.1) return;
+          toTarget.normalize();
+
+          const dot = camDir.dot(toTarget);
+          const score = dot - (dist * 0.0005);
+          if (dot > 0.0) {
+            if (score > bestScore) {
+              bestScore = score;
+              bestTarget = { type: 'dummy', dummy: d, index: idx };
+            }
+          }
+          if (score > fallbackScore) {
+            fallbackScore = score;
+            fallbackTarget = { type: 'dummy', dummy: d, index: idx };
+          }
+        });
+      } else {
+        Object.entries(remotePlayers).forEach(([pid, rp]) => {
+          if (!rp.group.visible || !rp.hasPos || rp.isInvisible || rp.isDead) return;
+          const targetPos = rp.group.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+          const toTarget = targetPos.clone().sub(camPos);
+          const dist = toTarget.length();
+          if (dist < 0.1) return;
+          toTarget.normalize();
+
+          const dot = camDir.dot(toTarget);
+          const score = dot - (dist * 0.0005);
+          if (dot > 0.0) {
+            if (score > bestScore) {
+              bestScore = score;
+              bestTarget = { type: 'player', peerId: pid, player: rp };
+            }
+          }
+          if (score > fallbackScore) {
+            fallbackScore = score;
+            fallbackTarget = { type: 'player', peerId: pid, player: rp };
+          }
+        });
+      }
+
+      return bestTarget || fallbackTarget;
+    }
+
+    // ターゲットの現在中心座標を取得するヘルパー
+    function getTargetCurrentPosition(targetInfo) {
+      if (!targetInfo) return null;
+
+      if (targetInfo.type === 'dummy') {
+        let d = targetInfo.dummy;
+        if (!d && typeof targetInfo.index === 'number') d = dummies[targetInfo.index];
+        if (d && d.hp > 0) {
+          return d.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+        }
+      } else if (targetInfo.type === 'player') {
+        const pid = targetInfo.peerId;
+        if (pid === myPeerId) {
+          if (!isDead && invisibilityTimer <= 0) {
+            return playerPos.clone().add(new THREE.Vector3(0, 0.9, 0));
+          }
+        } else if (remotePlayers[pid]) {
+          const rp = remotePlayers[pid];
+          if (rp.group.visible && rp.hasPos && !rp.isInvisible && !rp.isDead) {
+            return rp.group.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+          }
+        }
+      }
+      return null;
+    }
+
+    function spawnSpell(x, y, z, vx, vy, vz, shooterId, colorHex = 0x0984e3, scale = 1.0, isHoming = false, isExSuperHoming = false, targetInfo = null) {
       let count = 0;
       let oldestIdx = -1;
       for (let i = 0; i < spells.length; i++) {
@@ -1243,7 +1326,21 @@
       spellGroup.add(core, glow, light);
       spellGroup.position.set(x, y, z);
       scene.add(spellGroup);
-      spells.push({ group: spellGroup, vx, vy, vz, life: 3.0, shooterId, isMine, color, scale, isHoming, isExSuperHoming });
+
+      const life = isExSuperHoming ? 4.5 : 3.0; // EXミサイルは旋回時間を考慮して4.5秒
+      spells.push({
+        group: spellGroup,
+        vx, vy, vz,
+        life,
+        shooterId,
+        isMine,
+        color,
+        scale,
+        isHoming,
+        isExSuperHoming,
+        targetInfo,
+        flightTime: 0
+      });
     }
 
     let shakeIntensity = 0;
@@ -1261,13 +1358,9 @@
     let guestPeer = null;
     const hostConnections = {};
     let guestConn = null;
-    let isSoloMode = false;
-    let stageSynced = false;
-    let syncRetryTimer = null;
-    let hostPeerId = null;
 
     function initNetwork(roomId) {
-      if (isSoloMode) {
+      if (currentStage === 'training') {
         myPeerId = "solo_player";
         document.getElementById('info').innerText = '訓練場（ソロ練習モード）';
         addBattleLog(`訓練場へ入場しました。200%チャージしてEX必殺技をお試しください！`);
@@ -1309,46 +1402,24 @@
         });
 
         guestPeer.on('error', (err) => {
-          const fatalTypes = ['peer-unavailable', 'unavailable-id', 'network', 'server-error', 'socket-error', 'socket-closed', 'browser-incompatible', 'ssl-unavailable'];
-          if (!err || !err.type || fatalTypes.includes(err.type)) {
-            alert('ホストが見つかりませんでした。合言葉を確認するか、先に部屋を作ってください。');
-            leaveGame();
-          } else {
-            addBattleLog(`通信の警告: ${err.type}（接続は維持します）`);
-          }
+          alert('ホストが見つかりませんでした。合言葉を確認するか、先に部屋を作ってください。');
+          leaveGame();
         });
       }
     }
 
-    function sendInitSync(conn) {
-      if (!conn || !conn.open) return;
-      conn.send({ type: 'init_sync', stage: currentStage, hostName: playerName, hostId: myPeerId });
-    }
-
     function setupHostConn(conn) {
-      // データチャネルが 'open' 前に通信可能になるケースがあるため、まず即座に登録する
-      hostConnections[conn.peer] = conn;
-      let announced = false;
-
-      const onReady = () => {
-        if (announced) return;
-        announced = true;
+      conn.on('open', () => {
         hostConnections[conn.peer] = conn;
-        if (!remotePlayers[conn.peer]) createRemotePlayer(conn.peer, "魔導士");
-        sendInitSync(conn);
+        createRemotePlayer(conn.peer, "魔導士");
+        conn.send({ type: 'init_sync', stage: currentStage, hostName: playerName });
         broadcastLog(`新たな挑戦者が参戦しました！ (参加人数: ${Object.keys(hostConnections).length + 1}/4)`);
-      };
-
-      if (conn.open) onReady();
-      else conn.on('open', onReady);
+      });
 
       conn.on('data', (data) => {
-        onReady();
-        if (!data) return;
-        if (data.type === 'handshake' || data.type === 'request_sync') sendInitSync(conn);
         handleNetData(data, conn.peer);
         Object.entries(hostConnections).forEach(([pid, c]) => {
-          if (pid !== conn.peer && c && c.open) c.send({ ...data, senderId: conn.peer });
+          if (pid !== conn.peer && c.open) c.send({ ...data, senderId: conn.peer });
         });
       });
 
@@ -1357,64 +1428,22 @@
         delete hostConnections[conn.peer];
         broadcastLog(`プレイヤーが切断しました`);
       });
-
-      conn.on('error', () => {
-        removeRemotePlayer(conn.peer);
-        delete hostConnections[conn.peer];
-      });
     }
 
     function setupGuestConn(conn, hostId) {
-      hostPeerId = hostId;
-      let opened = false;
-
-      const onReady = () => {
-        if (opened) return;
-        opened = true;
+      conn.on('open', () => {
         document.getElementById('info').innerText = '戦闘中';
         conn.send({ type: 'handshake', name: playerName });
-
-        // init_sync が届かない場合に備えてステージ同期を再要求する
-        if (syncRetryTimer) clearInterval(syncRetryTimer);
-        let tries = 0;
-        syncRetryTimer = setInterval(() => {
-          tries++;
-          if (stageSynced || tries > 10 || !conn.open) {
-            clearInterval(syncRetryTimer);
-            syncRetryTimer = null;
-            return;
-          }
-          conn.send({ type: 'request_sync' });
-        }, 800);
-      };
-
-      if (conn.open) onReady();
-      else conn.on('open', onReady);
-
-      conn.on('data', (data) => {
-        onReady();
-        handleNetData(data, (data && data.senderId) || hostId);
       });
+      conn.on('data', (data) => handleNetData(data, data.senderId || hostId));
       conn.on('close', () => { document.getElementById('info').innerText = 'ホストから切断されました'; });
-      conn.on('error', () => { document.getElementById('info').innerText = 'ホストとの通信に問題が発生しました'; });
     }
 
     function handleNetData(data, senderId) {
       if (data.type === 'init_sync') {
-        stageSynced = true;
-        if (syncRetryTimer) { clearInterval(syncRetryTimer); syncRetryTimer = null; }
-        if (data.hostId) hostPeerId = data.hostId;
-        const syncStage = data.stage || currentStage;
-        if (syncStage !== currentStage) {
-          buildStage(syncStage);
-          resetSpawn(true);
-        }
-        const hid = data.hostId || senderId;
-        if (hid && hid !== myPeerId && !remotePlayers[hid]) createRemotePlayer(hid, data.hostName || 'ホスト');
-        if (guestConn && guestConn.open) guestConn.send({ type: 'handshake', name: playerName });
-        addBattleLog(`ステージ同期: ${String(syncStage).toUpperCase()}`);
-      } else if (data.type === 'request_sync') {
-        if (isHost) sendInitSync(hostConnections[senderId]);
+        buildStage(data.stage);
+        resetSpawn(true);
+        addBattleLog(`ステージ同期: ${data.stage.toUpperCase()}`);
       } else if (data.type === 'handshake') {
         if (!remotePlayers[senderId]) createRemotePlayer(senderId, data.name);
         remotePlayers[senderId].name = data.name;
@@ -1451,7 +1480,13 @@
         const rp = remotePlayers[senderId];
         const col = rp ? rp.color : 0xff4757;
         const actualShooterId = data.shooterId || senderId;
-        spawnSpell(data.x, data.y, data.z, data.vx, data.vy, data.vz, actualShooterId, col, data.scale || 1.0, !!data.isHoming, !!data.isExSuperHoming);
+        let receivedTarget = null;
+        if (data.targetType === 'player') {
+          receivedTarget = { type: 'player', peerId: data.targetPeerId };
+        } else if (data.targetType === 'dummy') {
+          receivedTarget = { type: 'dummy', index: data.targetDummyIdx };
+        }
+        spawnSpell(data.x, data.y, data.z, data.vx, data.vy, data.vz, actualShooterId, col, data.scale || 1.0, !!data.isHoming, !!data.isExSuperHoming, receivedTarget);
       } else if (data.type === 'hit_confirmed') {
         if (data.targetShooterId === myPeerId || data.targetShooterId === 'player') {
           let chargeAmt = ultConfig[selectedUltType].baseHitCharge;
@@ -1625,7 +1660,6 @@
       myShield.visible = false;
     }
 
-    // サイトを消す（閉じる）・離脱する・フォーカスが外れる時に確実にカーソルを復元
     window.addEventListener('blur', () => {
       releasePointerLock();
       clearInputs();
@@ -1664,13 +1698,6 @@
       releasePointerLock();
       clearInputs();
 
-      if (syncRetryTimer) { clearInterval(syncRetryTimer); syncRetryTimer = null; }
-      stageSynced = false;
-      Object.keys(hostConnections).forEach(pid => {
-        try { if (hostConnections[pid]) hostConnections[pid].close(); } catch (e) {}
-        delete hostConnections[pid];
-      });
-
       if (hostPeer) { hostPeer.destroy(); hostPeer = null; }
       if (guestPeer) { guestPeer.destroy(); guestPeer = null; }
       if (guestConn) { guestConn.close(); guestConn = null; }
@@ -1696,8 +1723,6 @@
     document.getElementById('btn-goto-host').addEventListener('click', () => {
       gameModeChoice = 'host';
       isHost = true;
-      const selectedCard = document.querySelector('.stage-card.selected');
-      selectedStage = selectedCard ? selectedCard.getAttribute('data-stage') : 'temple';
       document.getElementById('mode-badge').innerText = `モード: 部屋を作成（ホスト） [ルーム: ${document.getElementById('room-input').value}]`;
       document.getElementById('stage-selection-area').style.display = 'block';
       document.getElementById('step-1').style.display = 'none';
@@ -1750,13 +1775,8 @@
       playerName = document.getElementById('name-input').value.trim() || '魔導士';
       const room = document.getElementById('room-input').value.trim() || 'arena888';
 
-      isSoloMode = (gameModeChoice === 'solo');
-      stageSynced = false;
-      if (syncRetryTimer) { clearInterval(syncRetryTimer); syncRetryTimer = null; }
-
-      if (isSoloMode) buildStage('training');
-      else if (gameModeChoice === 'host') buildStage(selectedStage === 'training' ? 'temple' : selectedStage);
-      else buildStage('temple'); // 参加側はホストの init_sync で上書きされる
+      if (gameModeChoice === 'solo') buildStage('training');
+      else if (gameModeChoice === 'host') buildStage(selectedStage);
 
       initNetwork(room);
       resetSpawn(true);
@@ -1836,21 +1856,39 @@
       const sx = playerPos.x + dir.x * 0.6;
       const sy = playerPos.y + eyeHeight + dir.y * 0.6;
       const sz = playerPos.z + dir.z * 0.6;
-      const speed = nextShotExHoming ? 55 : 44;
-      const vx = dir.x * speed, vy = dir.y * speed, vz = dir.z * speed;
 
       const spellScale = (upgradeLevel >= 2) ? 1.5 : 1.0;
       const isHoming = (upgradeLevel >= 4);
       const isExSuperHoming = nextShotExHoming;
 
+      let targetInfo = null;
+      if (isExSuperHoming) {
+        // ★照準（画面中央）に最も近い敵をロックオン！
+        targetInfo = findBestCrosshairTarget(camera.position, dir);
+      }
+
+      const speed = isExSuperHoming ? 36 : 44; // EX超ミサイルは初速36から加速
+      const vx = dir.x * speed, vy = dir.y * speed, vz = dir.z * speed;
+
       if (nextShotExHoming) {
         nextShotExHoming = false;
         triggerRainbowFlash();
-        addBattleLog(`<span style="color:#fd79a8">🌈 EX超誘導ホーミング弾 発射！</span>`);
+        addBattleLog(`<span style="color:#fd79a8">🌈 EX超誘導ホーミング弾 発射！(追尾ミサイル)</span>`);
       }
 
-      spawnSpell(sx, sy, sz, vx, vy, vz, myPeerId, 0x0984e3, spellScale, isHoming, isExSuperHoming);
-      broadcastMsg({ type: 'shoot', shooterId: myPeerId, x: sx, y: sy, z: sz, vx, vy, vz, scale: spellScale, isHoming, isExSuperHoming });
+      spawnSpell(sx, sy, sz, vx, vy, vz, myPeerId, 0x0984e3, spellScale, isHoming, isExSuperHoming, targetInfo);
+      broadcastMsg({
+        type: 'shoot',
+        shooterId: myPeerId,
+        x: sx, y: sy, z: sz,
+        vx, vy, vz,
+        scale: spellScale,
+        isHoming,
+        isExSuperHoming,
+        targetType: targetInfo ? targetInfo.type : null,
+        targetPeerId: targetInfo && targetInfo.type === 'player' ? targetInfo.peerId : null,
+        targetDummyIdx: targetInfo && targetInfo.type === 'dummy' ? targetInfo.index : null
+      });
     }
 
     function triggerOverheat() {
@@ -2718,9 +2756,63 @@
         const s = spells[i];
         s.life -= delta;
 
-        if (s.isHoming || s.isExSuperHoming) {
+        // ★ EX超誘導ホーミング弾：追尾ミサイル制御
+        if (s.isExSuperHoming) {
+          s.flightTime += delta;
+
+          // トレイル煙・光エフェクト
+          if (Math.random() < 0.65) {
+            const pMat = new THREE.MeshBasicMaterial({ color: (Math.random() < 0.5 ? 0xff007f : 0x00cec9) });
+            const pMesh = new THREE.Mesh(sharedParticleGeo, pMat);
+            pMesh.position.copy(s.group.position).add(new THREE.Vector3((Math.random() - 0.5) * 0.25, (Math.random() - 0.5) * 0.25, (Math.random() - 0.5) * 0.25));
+            pMesh.scale.set(0.65, 0.65, 0.65);
+            scene.add(pMesh);
+            particles.push({ mesh: pMesh, v: new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2), life: 0.24 });
+          }
+
+          // 約0.22秒間直進してから、ターゲットへ向けてぐーっと旋回開始
+          if (s.flightTime >= 0.22) {
+            const targetPos = getTargetCurrentPosition(s.targetInfo);
+            if (targetPos) {
+              const toTarget = _tmpVecB.copy(targetPos).sub(s.group.position);
+              const dist = toTarget.length();
+
+              if (dist > 0.05) {
+                toTarget.normalize();
+                const curDir = _tmpVecA.set(s.vx, s.vy, s.vz).normalize();
+                const angle = curDir.angleTo(toTarget);
+
+                // 初期は緩やかにぐーっと大回り(6.5rad/s)し、時間経過＆接近に伴って強力追従
+                let turnRate = 6.5 + (s.flightTime - 0.22) * 5.5;
+                if (dist < 10.0) {
+                  turnRate += (10.0 - dist) * 2.5;
+                }
+                const maxAngleStep = turnRate * delta;
+
+                if (angle <= maxAngleStep) {
+                  curDir.copy(toTarget);
+                } else {
+                  _tmpVecC.crossVectors(curDir, toTarget);
+                  if (_tmpVecC.lengthSq() < 1e-6) {
+                    _tmpVecC.set(0, 1, 0);
+                  } else {
+                    _tmpVecC.normalize();
+                  }
+                  curDir.applyAxisAngle(_tmpVecC, maxAngleStep);
+                }
+
+                // 初速36m/sから52m/sへミサイル噴射加速
+                const curSpeed = Math.min(52.0, 36.0 + (s.flightTime - 0.22) * 16.0);
+                s.vx = curDir.x * curSpeed;
+                s.vy = curDir.y * curSpeed;
+                s.vz = curDir.z * curSpeed;
+              }
+            }
+          }
+        } else if (s.isHoming) {
+          // 通常の第4段階ホーミング
           let closestEnemyPos = null;
-          let minD = s.isExSuperHoming ? 45.0 : 24.0;
+          let minD = 24.0;
           _tmpVecA.set(s.vx, s.vy, s.vz).normalize();
 
           if (s.isMine) {
@@ -2733,8 +2825,7 @@
             candidates.forEach(pos => {
               _tmpVecB.copy(pos).add({ x: 0, y: 0.9, z: 0 }).sub(s.group.position);
               const d = _tmpVecB.length();
-              const minDot = s.isExSuperHoming ? -0.2 : 0.1;
-              if (d < minD && _tmpVecA.dot(_tmpVecB.normalize()) > minDot) {
+              if (d < minD && _tmpVecA.dot(_tmpVecB.normalize()) > 0.1) {
                 minD = d; closestEnemyPos = pos;
               }
             });
@@ -2742,8 +2833,7 @@
             if (!isDead && invisibilityTimer <= 0) {
               _tmpVecB.copy(playerPos).add({ x: 0, y: 0.9, z: 0 }).sub(s.group.position);
               const d = _tmpVecB.length();
-              const minDot = s.isExSuperHoming ? -0.2 : 0.1;
-              if (d < minD && _tmpVecA.dot(_tmpVecB.normalize()) > minDot) {
+              if (d < minD && _tmpVecA.dot(_tmpVecB.normalize()) > 0.1) {
                 closestEnemyPos = playerPos;
               }
             }
@@ -2751,13 +2841,12 @@
 
           if (closestEnemyPos) {
             _tmpVecB.copy(closestEnemyPos).add({ x: 0, y: 0.9, z: 0 }).sub(s.group.position).normalize();
-            const steerSpeed = s.isExSuperHoming ? 90 : 38;
+            const steerSpeed = 38;
             s.vx += _tmpVecB.x * steerSpeed * delta;
             s.vy += _tmpVecB.y * steerSpeed * delta;
             s.vz += _tmpVecB.z * steerSpeed * delta;
 
-            const curSpeed = s.isExSuperHoming ? 55 : 44;
-            _tmpVecA.set(s.vx, s.vy, s.vz).normalize().multiplyScalar(curSpeed);
+            _tmpVecA.set(s.vx, s.vy, s.vz).normalize().multiplyScalar(44);
             s.vx = _tmpVecA.x; s.vy = _tmpVecA.y; s.vz = _tmpVecA.z;
           }
         }
