@@ -315,6 +315,7 @@
       </div>
 
       <div id="info">合言葉を入力して参戦</div>
+      <div id="net-status" style="font-size:12px;font-weight:bold;color:#81ecec;margin-top:2px;"></div>
       <div id="active-buff"></div>
     </div>
   </div>
@@ -1358,6 +1359,34 @@
     let guestPeer = null;
     const hostConnections = {};
     let guestConn = null;
+    let connectTimeoutHandle = null;
+
+    // PeerJSは何も指定しないとSTUNのみ（GoogleのデフォルトSTUNさえ無い場合もある）で動作するため、
+    // お互いが別のWi-Fi/スマホ回線/学校のネットワークなど「直接繋がりにくい」組み合わせだと
+    // WebRTCの通信路が確立できず、シグナリング（部屋への出入り）だけ成功して
+    // 実際のP2P通信（対戦相手の同期）が永遠に始まらない、という状態になる。
+    // これがおそらく「部屋には入れるが相手が見えない」の主因。STUNに加えて無料のTURN中継
+    // サーバー(OpenRelay)を設定し、直接経路が無い場合は中継経由で繋がるようにする。
+    const PEER_RTC_CONFIG = {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ]
+      }
+    };
+
+    function setNetStatus(text) {
+      const el = document.getElementById('net-status');
+      if (el) el.innerText = text;
+    }
+
+    function clearConnectTimeout() {
+      if (connectTimeoutHandle) { clearTimeout(connectTimeoutHandle); connectTimeoutHandle = null; }
+    }
 
     function initNetwork(roomId) {
       if (currentStage === 'training') {
@@ -1369,39 +1398,68 @@
 
       if (isHost) {
         const hostId = `arena4p-v4-${roomId}-host`;
-        hostPeer = new Peer(hostId);
+        hostPeer = new Peer(hostId, PEER_RTC_CONFIG);
+
+        // 'connection' の購読は open を待たずに最初から張っておく（以前は open のコールバック内で
+        // 登録していたため、ごく稀にタイミング次第で最初の接続を取りこぼす可能性があった）
+        hostPeer.on('connection', (conn) => {
+          if (Object.keys(hostConnections).length >= 3) { conn.close(); return; }
+          setupHostConn(conn);
+        });
 
         hostPeer.on('open', (id) => {
           myPeerId = id;
           document.getElementById('info').innerText = 'ホストとして待機中... (最大4人)';
+          setNetStatus('参加者を待っています…（合言葉を友達に伝えてください）');
           buildStage(selectedStage);
           addBattleLog(`部屋作成完了: [${roomId}] ステージ: ${currentStage.toUpperCase()}`);
+        });
 
-          hostPeer.on('connection', (conn) => {
-            if (Object.keys(hostConnections).length >= 3) { conn.close(); return; }
-            setupHostConn(conn);
-          });
+        hostPeer.on('disconnected', () => {
+          setNetStatus('サーバーとの接続が切れました。再接続しています…');
+          try { hostPeer.reconnect(); } catch (e) {}
         });
 
         hostPeer.on('error', (err) => {
           if (err.type === 'unavailable-id') {
             alert('この合言葉の部屋は既にホストが存在します。「部屋に入る」を選択するか別の合言葉を使ってください。');
             leaveGame();
+          } else {
+            setNetStatus(`通信エラーが発生しました (${err.type || err})`);
           }
         });
       } else {
         const hostId = `arena4p-v4-${roomId}-host`;
         const randomGuestId = `arena4p-v4-${roomId}-g${Math.floor(Math.random() * 8999 + 1000)}`;
-        guestPeer = new Peer(randomGuestId);
+        guestPeer = new Peer(randomGuestId, PEER_RTC_CONFIG);
 
         guestPeer.on('open', (id) => {
           myPeerId = id;
           document.getElementById('info').innerText = 'ホストへ接続中...';
-          guestConn = guestPeer.connect(hostId);
+          setNetStatus('ホストへ接続中…');
+          guestConn = guestPeer.connect(hostId, { reliable: true });
           setupGuestConn(guestConn, hostId);
+
+          // 一定時間たっても実際のP2P接続が開かない場合は「繋がったふり」のまま放置せず
+          // はっきり失敗として通知する（以前はここでタイムアウト処理が無く、無反応のまま
+          // resetSpawn() が「戦闘中」と表示してしまい、実際は誰とも繋がっていなかった）
+          clearConnectTimeout();
+          connectTimeoutHandle = setTimeout(() => {
+            if (!guestConn || !guestConn.open) {
+              setNetStatus('接続に失敗しました');
+              alert('ホストに接続できませんでした。合言葉を確認してください。改善しない場合、相手または自分の通信環境（学校/公共Wi-Fi、モバイル回線など）がP2P通信をブロックしている可能性があります。');
+              leaveGame();
+            }
+          }, 15000);
+        });
+
+        guestPeer.on('disconnected', () => {
+          setNetStatus('サーバーとの接続が切れました。再接続しています…');
+          try { guestPeer.reconnect(); } catch (e) {}
         });
 
         guestPeer.on('error', (err) => {
+          clearConnectTimeout();
           alert('ホストが見つかりませんでした。合言葉を確認するか、先に部屋を作ってください。');
           leaveGame();
         });
@@ -1414,6 +1472,7 @@
         createRemotePlayer(conn.peer, "魔導士");
         conn.send({ type: 'init_sync', stage: currentStage, hostName: playerName });
         broadcastLog(`新たな挑戦者が参戦しました！ (参加人数: ${Object.keys(hostConnections).length + 1}/4)`);
+        setNetStatus(`接続中: ${Object.keys(hostConnections).length}人`);
       });
 
       conn.on('data', (data) => {
@@ -1427,16 +1486,32 @@
         removeRemotePlayer(conn.peer);
         delete hostConnections[conn.peer];
         broadcastLog(`プレイヤーが切断しました`);
+        setNetStatus(Object.keys(hostConnections).length > 0
+          ? `接続中: ${Object.keys(hostConnections).length}人`
+          : '参加者を待っています…（合言葉を友達に伝えてください）');
+      });
+
+      conn.on('error', (err) => {
+        setNetStatus(`通信エラー: ${(err && err.type) || err}`);
       });
     }
 
     function setupGuestConn(conn, hostId) {
       conn.on('open', () => {
+        clearConnectTimeout();
         document.getElementById('info').innerText = '戦闘中';
+        setNetStatus('ホストに接続しました ✓');
         conn.send({ type: 'handshake', name: playerName });
       });
       conn.on('data', (data) => handleNetData(data, data.senderId || hostId));
-      conn.on('close', () => { document.getElementById('info').innerText = 'ホストから切断されました'; });
+      conn.on('close', () => {
+        document.getElementById('info').innerText = 'ホストから切断されました';
+        setNetStatus('ホストとの接続が切断されました');
+      });
+      conn.on('error', (err) => {
+        clearConnectTimeout();
+        setNetStatus(`接続エラー: ${(err && err.type) || err}`);
+      });
     }
 
     function handleNetData(data, senderId) {
@@ -1697,6 +1772,7 @@
       isGameStarted = false;
       releasePointerLock();
       clearInputs();
+      clearConnectTimeout();
 
       if (hostPeer) { hostPeer.destroy(); hostPeer = null; }
       if (guestPeer) { guestPeer.destroy(); guestPeer = null; }
@@ -1718,6 +1794,7 @@
       document.getElementById('esc-notice').style.display = 'none';
       document.getElementById('ex-notification').style.opacity = '0';
       document.getElementById('info').innerText = '合言葉を入力して参戦';
+      setNetStatus('');
     }
 
     document.getElementById('btn-goto-host').addEventListener('click', () => {
