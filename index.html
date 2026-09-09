@@ -1358,23 +1358,12 @@
     let hostPeer = null;
     let guestPeer = null;
     const hostConnections = {};
+    let hostConnOrder = []; // 参加した順番でpeerIdを保持しておく（ホスト離脱時、次に長くいる人を後継ホストにするため）
     let guestConn = null;
     let connectTimeoutHandle = null;
-
-    // ホスト引き継ぎ（マイグレーション）関連の状態
-    // currentRoomId: 現在の部屋の合言葉（ホスト昇格時の再接続に必要なので保持しておく）
-    // joinOrder: 入室順に並んだ peerId のリスト（ホストが管理し、ゲスト全員に配信する）
-    //            リストの先頭が「ホストが抜けた場合に次のホストになる人」
-    // isMigrating: ホスト引き継ぎ処理の最中に、通常の切断処理（leaveGame等）が
-    //              二重に走らないようにするためのフラグ
     let currentRoomId = null;
-    let joinOrder = [];
-    let isMigrating = false;
-    let migrationTimeoutHandle = null;
-
-    function clearMigrationTimeout() {
-      if (migrationTimeoutHandle) { clearTimeout(migrationTimeoutHandle); migrationTimeoutHandle = null; }
-    }
+    let hostBindRetryCount = 0;
+    let migrationInProgress = false;
 
     // PeerJSは何も指定しないとSTUNのみ（GoogleのデフォルトSTUNさえ無い場合もある）で動作するため、
     // お互いが別のWi-Fi/スマホ回線/学校のネットワークなど「直接繋がりにくい」組み合わせだと
@@ -1405,7 +1394,6 @@
 
     function initNetwork(roomId) {
       currentRoomId = roomId;
-
       if (currentStage === 'training') {
         myPeerId = "solo_player";
         document.getElementById('info').innerText = '訓練場（ソロ練習モード）';
@@ -1414,19 +1402,43 @@
       }
 
       if (isHost) {
-        startAsHost(roomId, { isMigration: false });
+        hostBindRetryCount = 0;
+        startHosting(`arena4p-v4-${roomId}-host`, false);
       } else {
-        startAsGuest(roomId, { isMigration: false });
+        const hostId = `arena4p-v4-${roomId}-host`;
+        const randomGuestId = `arena4p-v4-${roomId}-g${Math.floor(Math.random() * 8999 + 1000)}`;
+        guestPeer = new Peer(randomGuestId, PEER_RTC_CONFIG);
+
+        guestPeer.on('open', (id) => {
+          myPeerId = id;
+          document.getElementById('info').innerText = 'ホストへ接続中...';
+          setNetStatus('ホストへ接続中…');
+          connectToHost(hostId, false, 1);
+        });
+
+        guestPeer.on('disconnected', () => {
+          setNetStatus('サーバーとの接続が切れました。再接続しています…');
+          try { guestPeer.reconnect(); } catch (e) {}
+        });
+
+        guestPeer.on('error', (err) => {
+          clearConnectTimeout();
+          alert('ホストが見つかりませんでした。合言葉を確認するか、先に部屋を作ってください。');
+          leaveGame();
+        });
       }
     }
 
-    // ホストとして起動する（新規部屋作成、またはホスト引き継ぎ後の昇格の両方で使用）
-    function startAsHost(roomId, { isMigration }) {
-      const hostId = `arena4p-v4-${roomId}-host`;
+    // isMigration=true のときは「ホスト離脱に伴う後継ホストへの昇格」呼び出し。
+    // 直前のホストが使っていたIDがPeerJSのサーバー側でまだ解放されていない場合に備え、
+    // unavailable-id エラーを一定回数リトライする（通常の新規部屋作成時も同様にリトライする
+    // ことで、「全員退出した直後は合言葉を使い回せない」不具合にも対応している）。
+    function startHosting(hostId, isMigration) {
+      Object.keys(hostConnections).forEach(k => delete hostConnections[k]);
+      hostConnOrder = [];
+
       hostPeer = new Peer(hostId, PEER_RTC_CONFIG);
 
-      // 'connection' の購読は open を待たずに最初から張っておく（以前は open のコールバック内で
-      // 登録していたため、ごく稀にタイミング次第で最初の接続を取りこぼす可能性があった）
       hostPeer.on('connection', (conn) => {
         if (Object.keys(hostConnections).length >= 3) { conn.close(); return; }
         setupHostConn(conn);
@@ -1434,20 +1446,17 @@
 
       hostPeer.on('open', (id) => {
         myPeerId = id;
-        joinOrder = [myPeerId];
-        document.getElementById('info').innerText = 'ホストとして待機中... (最大4人)';
+        isHost = true;
+        hostBindRetryCount = 0;
         if (isMigration) {
-          // 旧ホスト管理下での他プレイヤーの表示（remotePlayers）は、旧Peer IDに紐づいたもの。
-          // 生存メンバーは新しいPeer IDで自分（新ホスト）に再接続してくるため、
-          // 古い表示をクリアして重複・幽霊アバターが残らないようにする。
-          clearAllRemotePlayers();
-          Object.keys(hostConnections).forEach(pid => delete hostConnections[pid]);
-          setNetStatus('あなたが新しいホストになりました（参加者を待っています…）');
-          addBattleLog(`<span style="color:#f1c40f">★ ホストが退出したため、あなたが新ホストに昇格しました</span>`);
+          document.getElementById('info').innerText = '戦闘中';
+          setNetStatus('あなたが新しいホストになりました（参加者の再接続を待っています）');
+          addBattleLog('ホストが退出したため、あなたが新しいホストになりました。');
         } else {
+          document.getElementById('info').innerText = 'ホストとして待機中... (最大4人)';
           setNetStatus('参加者を待っています…（合言葉を友達に伝えてください）');
           buildStage(selectedStage);
-          addBattleLog(`部屋作成完了: [${roomId}] ステージ: ${currentStage.toUpperCase()}`);
+          addBattleLog(`部屋作成完了: [${currentRoomId}] ステージ: ${currentStage.toUpperCase()}`);
         }
       });
 
@@ -1458,12 +1467,16 @@
 
       hostPeer.on('error', (err) => {
         if (err.type === 'unavailable-id') {
-          if (hostPeer) { try { hostPeer.destroy(); } catch (e) {} hostPeer = null; }
-          if (isMigration) {
-            // 極めて稀なケース：自分より前に別の誰かが既に新ホストとして名乗りを上げていた。
-            // その場合は自分はゲストとして、その新ホストに繋ぎ直す。
-            isHost = false;
-            startAsGuest(roomId, { isMigration: true });
+          if (hostBindRetryCount < 5) {
+            hostBindRetryCount++;
+            setNetStatus(isMigration
+              ? `新ホストとして接続を試みています…(${hostBindRetryCount}/5)`
+              : `部屋を準備しています…(${hostBindRetryCount}/5)`);
+            try { hostPeer.destroy(); } catch (e) {}
+            setTimeout(() => startHosting(hostId, isMigration), 1500);
+          } else if (isMigration) {
+            alert('新しいホストへの切り替えに失敗しました。お手数ですが、全員で退出してから部屋を作り直してください。');
+            leaveGame();
           } else {
             alert('この合言葉の部屋は既にホストが存在します。「部屋に入る」を選択するか別の合言葉を使ってください。');
             leaveGame();
@@ -1474,76 +1487,41 @@
       });
     }
 
-    // ゲストとして起動する（新規参加、またはホスト引き継ぎ後の再接続の両方で使用）
-    function startAsGuest(roomId, { isMigration }) {
-      // 引き継ぎの再試行などで古い guestPeer / guestConn が残っている場合は先に破棄しておく
-      if (guestConn) { try { guestConn.close(); } catch (e) {} guestConn = null; }
-      if (guestPeer) { try { guestPeer.destroy(); } catch (e) {} guestPeer = null; }
+    // attempt: 現在の試行回数（1始まり）。通常参加時は1回だけ（失敗したら15秒でタイムアウト通知）、
+    // ホスト移行時（isMigration=true）は新ホストの起動を待つため、短い間隔で複数回リトライする。
+    function connectToHost(hostId, isMigration, attempt) {
+      const maxAttempts = isMigration ? 6 : 1;
+      const waitMs = isMigration ? 2000 : 15000;
 
-      const hostId = `arena4p-v4-${roomId}-host`;
-      const randomGuestId = `arena4p-v4-${roomId}-g${Math.floor(Math.random() * 8999 + 1000)}`;
-      guestPeer = new Peer(randomGuestId, PEER_RTC_CONFIG);
+      guestConn = guestPeer.connect(hostId, { reliable: true });
+      setupGuestConn(guestConn, hostId);
 
-      guestPeer.on('open', (id) => {
-        myPeerId = id;
-        document.getElementById('info').innerText = isMigration ? 'ホストへ再接続中...' : 'ホストへ接続中...';
-        setNetStatus(isMigration ? '新しいホストへ再接続中…' : 'ホストへ接続中…');
-        guestConn = guestPeer.connect(hostId, { reliable: true });
-        setupGuestConn(guestConn, hostId);
-
-        // 一定時間たっても実際のP2P接続が開かない場合は「繋がったふり」のまま放置せず
-        // はっきり失敗として通知する（以前はここでタイムアウト処理が無く、無反応のまま
-        // resetSpawn() が「戦闘中」と表示してしまい、実際は誰とも繋がっていなかった）
-        clearConnectTimeout();
-        connectTimeoutHandle = setTimeout(() => {
-          if (!guestConn || !guestConn.open) {
+      clearConnectTimeout();
+      connectTimeoutHandle = setTimeout(() => {
+        if (!guestConn || !guestConn.open) {
+          if (attempt < maxAttempts) {
+            setNetStatus(`新しいホストに接続しています…(${attempt}/${maxAttempts})`);
+            try { guestConn && guestConn.close(); } catch (e) {}
+            connectToHost(hostId, isMigration, attempt + 1);
+          } else {
             setNetStatus('接続に失敗しました');
-            if (isMigration) {
-              // 新ホストがまだ起動しきっていない可能性があるので、もう一度だけ再試行する
-              clearConnectTimeout();
-              startAsGuest(roomId, { isMigration: true });
-            } else {
-              alert('ホストに接続できませんでした。合言葉を確認してください。改善しない場合、相手または自分の通信環境（学校/公共Wi-Fi、モバイル回線など）がP2P通信をブロックしている可能性があります。');
-              leaveGame();
-            }
+            alert(isMigration
+              ? '新しいホストへの再接続に失敗しました。お手数ですが再度部屋に入り直してください。'
+              : 'ホストに接続できませんでした。合言葉を確認してください。改善しない場合、相手または自分の通信環境（学校/公共Wi-Fi、モバイル回線など）がP2P通信をブロックしている可能性があります。');
+            leaveGame();
           }
-        }, 15000);
-      });
-
-      guestPeer.on('disconnected', () => {
-        setNetStatus('サーバーとの接続が切れました。再接続しています…');
-        try { guestPeer.reconnect(); } catch (e) {}
-      });
-
-      guestPeer.on('error', (err) => {
-        clearConnectTimeout();
-        if (isMigration) {
-          // 新ホストがまだ Peer ID を確保しきっていないタイミングの可能性があるので、少し待って再試行
-          setTimeout(() => {
-            if (isMigrating) startAsGuest(roomId, { isMigration: true });
-          }, 1200);
-        } else {
-          alert('ホストが見つかりませんでした。合言葉を確認するか、先に部屋を作ってください。');
-          leaveGame();
         }
-      });
-    }
-
-    // 現在の入室順リスト（ホスト自身 + 全ゲスト）を組み立てて全員に配信する。
-    // 先頭が「次にホストを引き継ぐ人」になる。
-    function broadcastJoinOrder() {
-      joinOrder = [myPeerId, ...Object.keys(hostConnections)];
-      broadcastMsg({ type: 'join_order', order: joinOrder });
+      }, waitMs);
     }
 
     function setupHostConn(conn) {
       conn.on('open', () => {
         hostConnections[conn.peer] = conn;
+        if (!hostConnOrder.includes(conn.peer)) hostConnOrder.push(conn.peer);
         createRemotePlayer(conn.peer, "魔導士");
         conn.send({ type: 'init_sync', stage: currentStage, hostName: playerName });
         broadcastLog(`新たな挑戦者が参戦しました！ (参加人数: ${Object.keys(hostConnections).length + 1}/4)`);
         setNetStatus(`接続中: ${Object.keys(hostConnections).length}人`);
-        broadcastJoinOrder();
       });
 
       conn.on('data', (data) => {
@@ -1556,11 +1534,11 @@
       conn.on('close', () => {
         removeRemotePlayer(conn.peer);
         delete hostConnections[conn.peer];
+        hostConnOrder = hostConnOrder.filter(pid => pid !== conn.peer);
         broadcastLog(`プレイヤーが切断しました`);
         setNetStatus(Object.keys(hostConnections).length > 0
           ? `接続中: ${Object.keys(hostConnections).length}人`
           : '参加者を待っています…（合言葉を友達に伝えてください）');
-        broadcastJoinOrder();
       });
 
       conn.on('error', (err) => {
@@ -1571,17 +1549,15 @@
     function setupGuestConn(conn, hostId) {
       conn.on('open', () => {
         clearConnectTimeout();
-        clearMigrationTimeout();
-        isMigrating = false;
         document.getElementById('info').innerText = '戦闘中';
         setNetStatus('ホストに接続しました ✓');
         conn.send({ type: 'handshake', name: playerName });
       });
       conn.on('data', (data) => handleNetData(data, data.senderId || hostId));
       conn.on('close', () => {
+        if (migrationInProgress) return; // ホスト移行のための意図的な切断なので無視
         document.getElementById('info').innerText = 'ホストから切断されました';
         setNetStatus('ホストとの接続が切断されました');
-        handleHostDisconnected();
       });
       conn.on('error', (err) => {
         clearConnectTimeout();
@@ -1589,50 +1565,42 @@
       });
     }
 
-    // ホストが退出（切断）したときに呼ばれる。入室順リストの先頭に自分がいれば
-    // 自分が新ホストに昇格し、そうでなければ新ホストが起動するのを少し待ってから繋ぎ直す。
-    function handleHostDisconnected() {
-      if (!isGameStarted || isHost || isMigrating || currentStage === 'training') return;
-      if (!currentRoomId) return;
-
-      isMigrating = true;
-      clearConnectTimeout();
-
-      // 旧ホストの表示（remotePlayers）は消えるので取り除いておく。
-      // 他の生存ゲストの表示は、新ホスト経由で move データが届き次第そのまま更新される。
-      const oldHostId = joinOrder[0];
-      if (oldHostId) removeRemotePlayer(oldHostId);
-
-      // joinOrder は [旧ホストのID, ゲスト1, ゲスト2, ...] の並びで届いているので、
-      // 旧ホスト（先頭）を除いた残りメンバー＝生存しているゲストたちの入室順リストになる。
-      // その先頭＝最も早く入室していたゲストが次のホスト。
-      // join_order を一度も受信できていなかった場合（接続直後に切断された等）は
-      // 自分しかいないと判断し、自分がホストになる。
-      const survivors = joinOrder.slice(1);
-      const nextHostId = survivors.length > 0 ? survivors[0] : myPeerId;
-
-      if (!nextHostId || nextHostId === myPeerId) {
-        // 自分が入室順の先頭（＝最古参）なので、自分が新ホストになる
-        isHost = true;
-        guestConn = null;
-        setNetStatus('ホストが退出しました。あなたが新ホストになります…');
-        addBattleLog(`<span style="color:#f1c40f">ホストが退出しました。次のホストへ引き継いでいます…</span>`);
-        startAsHost(currentRoomId, { isMigration: true });
-      } else {
-        // 自分より先に入室していた誰かがいるので、その人が新ホストになるのを少し待ってから再接続
-        setNetStatus('ホストが退出しました。新しいホストに再接続しています…');
-        addBattleLog(`<span style="color:#f1c40f">ホストが退出しました。新しいホストに接続し直しています…</span>`);
-        clearMigrationTimeout();
-        migrationTimeoutHandle = setTimeout(() => {
-          if (!isMigrating || isHost) return;
-          if (guestPeer) { try { guestPeer.destroy(); } catch (e) {} guestPeer = null; }
-          startAsGuest(currentRoomId, { isMigration: true });
-        }, 800);
-      }
+    // ホストが退出する際、参加者がいれば一番長く在室している人を次のホストに指名して通知する。
+    // （「入出順」＝現在のホストへの接続が早かった順にhostConnOrderへ積んであるので、その先頭）
+    function migrateHostOnLeave() {
+      if (!isHost) return;
+      if (hostConnOrder.length === 0) return;
+      const promotedPeerId = hostConnOrder[0];
+      const payload = { type: 'host_migrate', promotedPeerId };
+      Object.values(hostConnections).forEach(c => {
+        if (c.open) { try { c.send(payload); } catch (e) {} }
+      });
     }
 
     function handleNetData(data, senderId) {
-      if (data.type === 'init_sync') {
+      if (data.type === 'host_migrate') {
+        migrationInProgress = true;
+        clearConnectTimeout();
+        clearAllRemotePlayers();
+        const newHostId = `arena4p-v4-${currentRoomId}-host`;
+
+        if (data.promotedPeerId === myPeerId) {
+          // 自分が次のホストに指名された
+          if (guestConn) { try { guestConn.close(); } catch (e) {} guestConn = null; }
+          if (guestPeer) { try { guestPeer.destroy(); } catch (e) {} guestPeer = null; }
+          hostBindRetryCount = 0;
+          startHosting(newHostId, true);
+        } else {
+          // 自分は引き続き参加者側。新ホストに繋ぎ直す
+          addBattleLog('ホストが退出しました。新しいホストに接続し直しています…');
+          setNetStatus('新しいホストに接続しています…');
+          if (guestConn) { try { guestConn.close(); } catch (e) {} }
+          setTimeout(() => {
+            migrationInProgress = false;
+            connectToHost(newHostId, true, 1);
+          }, 800);
+        }
+      } else if (data.type === 'init_sync') {
         buildStage(data.stage);
         resetSpawn(true);
         addBattleLog(`ステージ同期: ${data.stage.toUpperCase()}`);
@@ -1640,24 +1608,6 @@
         if (!remotePlayers[senderId]) createRemotePlayer(senderId, data.name);
         remotePlayers[senderId].name = data.name;
         remotePlayers[senderId].headTag.userData.name = data.name;
-      } else if (data.type === 'join_order') {
-        // ホストから配信される入室順リスト（[ホストID, ゲスト1, ゲスト2, ...]）を保持しておく。
-        // ホスト退出時に「次は誰がホストを引き継ぐか」を判断するために使う。
-        joinOrder = Array.isArray(data.order) ? data.order : joinOrder;
-      } else if (data.type === 'host_leaving') {
-        // ホストが自主退出する際に送ってくる明示的な通知。
-        // 対象が自分であれば、切断イベントを待たずに即座にホストへ昇格する。
-        if (isHost || isMigrating || currentStage === 'training' || !currentRoomId) return;
-        if (data.nextHostId === myPeerId) {
-          isMigrating = true;
-          isHost = true;
-          clearConnectTimeout();
-          clearMigrationTimeout();
-          if (guestConn) { try { guestConn.close(); } catch (e) {} guestConn = null; }
-          setNetStatus('ホストが退出しました。あなたが新ホストになります…');
-          addBattleLog(`<span style="color:#f1c40f">★ ホストが退出したため、あなたが新ホストに昇格しました</span>`);
-          startAsHost(currentRoomId, { isMigration: true });
-        }
       } else if (data.type === 'battle_log') {
         addBattleLog(data.text, data.logType);
       } else if (data.type === 'move') {
@@ -1876,6 +1826,7 @@
     });
     window.addEventListener('beforeunload', () => {
       releasePointerLock();
+      try { migrateHostOnLeave(); } catch (e) {}
       if (hostPeer) { try { hostPeer.destroy(); } catch (e) {} }
       if (guestPeer) { try { guestPeer.destroy(); } catch (e) {} }
     });
@@ -1904,33 +1855,22 @@
     }
 
     function leaveGame() {
-      // 自分がホストとして退出する場合、hostPeer を破棄する前に後継者へ明示的に
-      // 「次のホストはあなたです」と伝えておく。PeerJS側の close イベント検知だけに頼ると
-      // 反応が遅れたり、稀に取りこぼしたりする可能性があるため、確実性を優先している。
-      if (isHost && Object.keys(hostConnections).length > 0) {
-        const nextHostId = Object.keys(hostConnections)[0];
-        Object.entries(hostConnections).forEach(([pid, c]) => {
-          if (c.open) c.send({ type: 'host_leaving', nextHostId });
-        });
-      }
-
       isGameStarted = false;
-      isMigrating = false;
-      clearMigrationTimeout();
       releasePointerLock();
       clearInputs();
       clearConnectTimeout();
 
-      if (hostPeer) { hostPeer.destroy(); hostPeer = null; }
-      if (guestPeer) { guestPeer.destroy(); guestPeer = null; }
-      if (guestConn) { guestConn.close(); guestConn = null; }
-      Object.keys(hostConnections).forEach(pid => delete hostConnections[pid]);
+      // 自分がホストで、まだ他の参加者が残っているなら先に後継ホストへ通知してから切断する
+      migrateHostOnLeave();
+
+      if (hostPeer) { try { hostPeer.destroy(); } catch (e) {} hostPeer = null; }
+      if (guestPeer) { try { guestPeer.destroy(); } catch (e) {} guestPeer = null; }
+      if (guestConn) { try { guestConn.close(); } catch (e) {} guestConn = null; }
+      isHost = false;
+      hostConnOrder = [];
+      migrationInProgress = false;
       clearAllRemotePlayers();
       clearDummies();
-
-      currentRoomId = null;
-      joinOrder = [];
-      isHost = false;
 
       beamCharging = false;
       beamFiring = false;
